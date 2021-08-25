@@ -1,12 +1,48 @@
-import math, sys
+import math, sys, iostream
 from lux.game import Game
 from lux.game_map import Cell, RESOURCE_TYPES
 from lux.constants import Constants
+from iostream import cout
 from lux.game_constants import GAME_CONSTANTS
 from lux import annotate
 
 DIRECTIONS = Constants.DIRECTIONS
 game_state = None
+def plotPath(destination,unit):
+    path = []
+    path[0] = unit.pos()
+    pos = path[-1].pos()
+    optimalCell = game_state.map[pos.x,pos.y]
+    bestDist = optimalCell.pos.distance_to(destination)
+    while destination != path[-1] && path.len < 30:
+        for x in range(-1,1):
+            for y in range(-1,1):
+                dist = [pos.x + x, pos.y +y].distance_to(destination)
+                if dist < bestDist:
+                    bestDist = dist
+                    optimalCell = game_state
+        path = path + optimalCell
+    if path.len >= 28: #prevent timeout
+        path = []
+        path[0] = unit.pos
+    return path
+
+
+
+def calcCooldownToDest(destination,unit):
+    cool = unit.cooldown
+    if unit.is_worker():
+        unitFactor = 2
+    elif unit.is_cart():
+        unitFactor = 3
+    else:
+        return -1 #tried to plot a cityTile path
+    path = plotPath(destination,unit) #method does not exist yet, will return list of cells in path
+    for cell in path:
+       cool -= cell.road - unitFactor
+    return cool
+
+
 
 
 def agent(observation, configuration):
@@ -53,6 +89,7 @@ def agent(observation, configuration):
                     actions.append(unit.move(unit.pos.direction_to(closest_resource_tile.pos)))
             else:
                 # if unit is a worker and there is no cargo space left, and we have cities, lets return to them
+                ##should fetch time and time to harvest next resource and use it to calculate how much fuel required to survive the night - keep that if night is near
                 if len(player.cities) > 0:
                     closest_dist = math.inf
                     closest_city_tile = None
