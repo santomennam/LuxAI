@@ -5,29 +5,52 @@ from lux.constants import Constants
 from iostream import cout
 from lux.game_constants import GAME_CONSTANTS
 from lux import annotate
-
 DIRECTIONS = Constants.DIRECTIONS
 game_state = None
+
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
+
 def plotPath(destination,unit):
-    path = []
-    path[0] = unit.pos()
-    pos = path[-1].pos()
-    optimalCell = game_state.map[pos.x,pos.y]
+    path = [unit.pos]
+    eprint("destination: ",destination.x,destination.y)
+    #resolve fringe cases:
+    if destination == unit.pos:
+        eprint("at destination")
+        return path
+    pos = path[-1]
+    surroundingTiles = []
+    for x in range(-1, 1):
+        for y in range(-1, 1):
+            surroundingTiles.append(game_state.map.get_cell(pos.x + x, pos.y + y))
+    for cell in surroundingTiles:
+        if cell.pos == destination:
+            eprint("adjacent to destination")
+            path.append(cell)
+            return path
+    #calculation
+    optimalCell = game_state.map.get_cell(pos.x,pos.y)
     bestDist = optimalCell.pos.distance_to(destination)
-    while destination != path[-1] && path.len < 30:
+    while destination != path[-1] and len(path) < 30:
         for x in range(-1,1):
             for y in range(-1,1):
-                dist = [pos.x + x, pos.y +y].distance_to(destination)
+                pos = path[-1]
+                challengerCell = game_state.map.get_cell(pos.x + x, pos.y +y)
+                dist = challengerCell.pos.distance_to(destination)
                 if dist < bestDist:
                     bestDist = dist
-                    optimalCell = game_state
-        path = path + optimalCell
-    if path.len >= 28: #prevent timeout
-        path = []
-        path[0] = unit.pos
+                    optimalCell = challengerCell
+        if path.__contains__(optimalCell.pos):
+            eprint("path contains optimalCell already")
+            return path
+        path.append(optimalCell.pos)
+    eprint("Unit pos: ", unit.pos.x, unit.pos.y)
+    for item in path:
+        eprint(item.x, " ", item.y)
+    if len(path) >= 28: #prevent timeout
+        path = [unit.pos]
+        eprint("timeout")
     return path
-
-
 
 def calcCooldownToDest(destination,unit):
     cool = unit.cooldown
@@ -39,9 +62,22 @@ def calcCooldownToDest(destination,unit):
         return -1 #tried to plot a cityTile path
     path = plotPath(destination,unit) #method does not exist yet, will return list of cells in path
     for cell in path:
-       cool -= cell.road - unitFactor
+       cool -= (cell.road - unitFactor)
     return cool
 
+def move(unit, dest,actions):
+    surroundingTiles = []
+    pos = unit.pos
+    for x in range(-1, 1):
+        for y in range(-1, 1):
+            surroundingTiles.append(game_state.map.get_cell(pos.x + x, pos.y + y))
+    for cell in surroundingTiles:
+        if cell.pos == dest and cell.has_resource(): ## return if next to destination and dest is resource
+            return
+    path = plotPath(dest,unit)
+    if len(path) <= 1:
+        return
+    actions.append(unit.move(unit.pos.direction_to(path[1]))) #first object in path is our own position, so need to call to
 
 
 
@@ -86,7 +122,7 @@ def agent(observation, configuration):
                         closest_dist = dist
                         closest_resource_tile = resource_tile
                 if closest_resource_tile is not None:
-                    actions.append(unit.move(unit.pos.direction_to(closest_resource_tile.pos)))
+                    move(unit,closest_resource_tile.pos,actions)
             else:
                 # if unit is a worker and there is no cargo space left, and we have cities, lets return to them
                 ##should fetch time and time to harvest next resource and use it to calculate how much fuel required to survive the night - keep that if night is near
@@ -100,8 +136,7 @@ def agent(observation, configuration):
                                 closest_dist = dist
                                 closest_city_tile = city_tile
                     if closest_city_tile is not None:
-                        move_dir = unit.pos.direction_to(closest_city_tile.pos)
-                        actions.append(unit.move(move_dir))
+                        move(unit,closest_city_tile.pos,actions)
 
     # you can add debug annotations using the functions in the annotate object
     # actions.append(annotate.circle(0, 0))

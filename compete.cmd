@@ -1,0 +1,1 @@
+lux-ai-2021 simple\main.py firstAI\main.py  --out=replay.json
