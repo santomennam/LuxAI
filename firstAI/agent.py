@@ -13,6 +13,12 @@ def eprint(*args, **kwargs):
 
 def plotPath(destination,unit):
     path = [unit.pos]
+    enemyCityTiles = []
+    for city in game_state.players[0].cities.values():
+        for tiles in city.citytiles:
+            enemyCityTiles.append(tiles.pos)
+    forbiddenTiles = [enemyCityTiles]
+
     eprint("destination: ",destination.x,destination.y)
     #resolve fringe cases:
     if destination == unit.pos:
@@ -22,7 +28,8 @@ def plotPath(destination,unit):
     surroundingTiles = []
     for x in range(-1, 1):
         for y in range(-1, 1):
-            surroundingTiles.append(game_state.map.get_cell(pos.x + x, pos.y + y))
+            if x == 0 or y == 0 and x == 0^y == 0:
+                surroundingTiles.append(game_state.map.get_cell(pos.x + x, pos.y + y))
     for cell in surroundingTiles:
         if cell.pos == destination:
             eprint("adjacent to destination")
@@ -35,15 +42,31 @@ def plotPath(destination,unit):
         for x in range(-1,1):
             for y in range(-1,1):
                 pos = path[-1]
-                challengerCell = game_state.map.get_cell(pos.x + x, pos.y +y)
+                if x != 0 or y != 0:
+                    challengerCell = game_state.map.get_cell(pos.x + x, pos.y +y)
+                else:
+                    break
+                if challengerCell in forbiddenTiles:
+                    break
+
+                if challengerCell.pos == destination:
+                    path.append(destination)
+                    eprint("challenger was dest. added to path.")
+                    return path
+
                 dist = challengerCell.pos.distance_to(destination)
                 if dist < bestDist:
                     bestDist = dist
                     optimalCell = challengerCell
+
         if path.__contains__(optimalCell.pos):
-            eprint("path contains optimalCell already")
+            eprint("path contains optimalCell already: ",optimalCell.pos.x, optimalCell.pos.y, ". My position is ",unit.pos.x,unit.pos.y,"My destination is ",destination.x,destination.y)
             return path
         path.append(optimalCell.pos)
+        if optimalCell.pos.is_adjacent(destination):
+            path.append(destination)
+            eprint("destination was adjacent. added to path.")
+            return path
     eprint("Unit pos: ", unit.pos.x, unit.pos.y)
     for item in path:
         eprint(item.x, " ", item.y)
@@ -66,16 +89,21 @@ def calcCooldownToDest(destination,unit):
     return cool
 
 def move(unit, dest,actions):
+    eprint("trying to move to dest: ",dest)
     surroundingTiles = []
     pos = unit.pos
     for x in range(-1, 1):
         for y in range(-1, 1):
-            surroundingTiles.append(game_state.map.get_cell(pos.x + x, pos.y + y))
+            if x == 0 or y == 0:
+                surroundingTiles.append(game_state.map.get_cell(pos.x + x, pos.y + y))
     for cell in surroundingTiles:
         if cell.pos == dest and cell.has_resource(): ## return if next to destination and dest is resource
             return
     path = plotPath(dest,unit)
     if len(path) <= 1:
+        eprint("path too short! path contains:")
+        for item in path:
+            eprint("(",item.x,item.y,")")
         return
     actions.append(unit.move(unit.pos.direction_to(path[1]))) #first object in path is our own position, so need to call to
 
@@ -122,7 +150,10 @@ def agent(observation, configuration):
                         closest_dist = dist
                         closest_resource_tile = resource_tile
                 if closest_resource_tile is not None:
+                    eprint("closest resource tile is at ",closest_resource_tile.pos)
                     move(unit,closest_resource_tile.pos,actions)
+                else:
+                    eprint("NO CLOSEST RESOURCE TILE")
             else:
                 # if unit is a worker and there is no cargo space left, and we have cities, lets return to them
                 ##should fetch time and time to harvest next resource and use it to calculate how much fuel required to survive the night - keep that if night is near
@@ -136,7 +167,10 @@ def agent(observation, configuration):
                                 closest_dist = dist
                                 closest_city_tile = city_tile
                     if closest_city_tile is not None:
+                        eprint("trying to return to city.")
                         move(unit,closest_city_tile.pos,actions)
+                    else:
+                        eprint("CITY DEAD")
 
     # you can add debug annotations using the functions in the annotate object
     # actions.append(annotate.circle(0, 0))
