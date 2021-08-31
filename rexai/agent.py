@@ -89,7 +89,9 @@ def targetResource(unit, resourceTiles, player, actions):
         nightTurns = nightTurns if nightTurns > 0 else 0
         fuelUse = nightTurns * (4 if unit.is_worker() else 10)
 
+        # can we survive the trip?
         if (fuelUse == 0 or fuelUse < unit.cargo.amount) and tile.blocked != True:
+            # is this the best target?
             if target == None or (tile.adjRes > target.adjRes or 
             (tile.adjRes == target.adjRes and unit.pos.distance_to(tile.pos) < unit.pos.distance_to(target.pos))):
                 target = tile
@@ -125,6 +127,9 @@ def findPath(unit, dest, actions):
     step = 1
     stepBack = 0
     while not path[step - 1].equals(dest):
+        if stepBack > 0:
+            game_state.map.get_cell_by_pos(path[step]).blocked = False
+
         distEast = dest.x - path[step - 1].x
         distSouth = dest.y - path[step - 1].y
         path.append(None)
