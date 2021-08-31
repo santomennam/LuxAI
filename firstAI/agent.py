@@ -1,8 +1,7 @@
-import math, sys, iostream
+import math, sys
 from lux.game import Game
 from lux.game_map import Cell, RESOURCE_TYPES
 from lux.constants import Constants
-from iostream import cout
 from lux.game_constants import GAME_CONSTANTS
 from lux import annotate
 DIRECTIONS = Constants.DIRECTIONS
@@ -12,7 +11,7 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 def plotPath(destination,unit):
-    path = [unit.pos]
+    path = []
     enemyCityTiles = []
     for city in game_state.players[0].cities.values():
         for tiles in city.citytiles:
@@ -26,28 +25,29 @@ def plotPath(destination,unit):
         return path
     pos = path[-1]
     surroundingTiles = []
-    for x in range(-1, 1):
-        for y in range(-1, 1):
-            if x == 0 or y == 0 and x == 0^y == 0:
-                surroundingTiles.append(game_state.map.get_cell(pos.x + x, pos.y + y))
-    for cell in surroundingTiles:
-        if cell.pos == destination:
-            eprint("adjacent to destination")
-            path.append(cell)
-            return path
+    
     #calculation
-    optimalCell = game_state.map.get_cell(pos.x,pos.y)
-    bestDist = optimalCell.pos.distance_to(destination)
+    optimalCell = None
+    bestDist = sys.maxsize
     while destination != path[-1] and len(path) < 30:
+        for direction in DIRECTIONS:
+            if direction != DIRECTIONS.CENTER:
+                surroundingTiles.append(pos.translate(direction, 1))
+                
+        for cell in surroundingTiles:
+            if cell.pos == destination:
+                eprint("adjacent to destination")
+                path.append(cell.pos)
+                return path
         for x in range(-1,1):
             for y in range(-1,1):
                 pos = path[-1]
-                if x != 0 or y != 0:
+                if x == 0 ^ y == 0:
                     challengerCell = game_state.map.get_cell(pos.x + x, pos.y +y)
                 else:
-                    break
+                    continue
                 if challengerCell in forbiddenTiles:
-                    break
+                    continue
 
                 if challengerCell.pos == destination:
                     path.append(destination)
@@ -58,21 +58,19 @@ def plotPath(destination,unit):
                 if dist < bestDist:
                     bestDist = dist
                     optimalCell = challengerCell
+                    eprint("found better cell at", optimalCell.pos.x, optimalCell.pos.y)
 
-        if path.__contains__(optimalCell.pos):
-            eprint("path contains optimalCell already: ",optimalCell.pos.x, optimalCell.pos.y, ". My position is ",unit.pos.x,unit.pos.y,"My destination is ",destination.x,destination.y)
-            return path
+        #if path.__contains__(optimalCell.pos):
+            #eprint("path contains optimalCell already: ",optimalCell.pos.x, optimalCell.pos.y, ". My position is ",unit.pos.x,unit.pos.y,"My destination is ",destination.x,destination.y)
+            #return path 
         path.append(optimalCell.pos)
-        if optimalCell.pos.is_adjacent(destination):
-            path.append(destination)
-            eprint("destination was adjacent. added to path.")
-            return path
+    if len(path) >= 28: #prevent timeout
+        path = [path[1]]
+        eprint("timeout")
+        return path
     eprint("Unit pos: ", unit.pos.x, unit.pos.y)
     for item in path:
         eprint(item.x, " ", item.y)
-    if len(path) >= 28: #prevent timeout
-        path = [unit.pos]
-        eprint("timeout")
     return path
 
 def calcCooldownToDest(destination,unit):
@@ -100,14 +98,12 @@ def move(unit, dest,actions):
         if cell.pos == dest and cell.has_resource(): ## return if next to destination and dest is resource
             return
     path = plotPath(dest,unit)
-    if len(path) <= 1:
-        eprint("path too short! path contains:")
-        for item in path:
-            eprint("(",item.x,item.y,")")
-        return
-    actions.append(unit.move(unit.pos.direction_to(path[1]))) #first object in path is our own position, so need to call to
-
-
+    # if len(path) <= 1:
+    #     eprint("path too short! path contains:")
+    #     for item in path:
+    #         eprint("(",item.x,item.y,")")
+    #     return
+    actions.append(unit.move(unit.pos.direction_to(path[0]))) #first object in path is our own position, so need to call to
 
 def agent(observation, configuration):
     global game_state
@@ -123,7 +119,8 @@ def agent(observation, configuration):
     
     actions = []
 
-    ### AI Code goes down here! ### 
+    ### AI Code goes down here! ###
+    eprint("== TURN ", game_state.turn, " ==")
     player = game_state.players[observation.player]
     opponent = game_state.players[(observation.player + 1) % 2]
     width, height = game_state.map.width, game_state.map.height
