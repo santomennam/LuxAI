@@ -7,6 +7,13 @@ from lux import annotate
 DIRECTIONS = Constants.DIRECTIONS
 game_state = None
 
+def getSurroundingTiles(pos,range):
+    directions = ["NORTH", "SOUTH", "EAST", "WEST"]
+    surroundingTiles = []
+    for direct in directions:
+        surroundingTiles.append(game_state.map.get_cell_by_pos(pos.translate(dir, 1)))
+    return surroundingTiles
+
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
@@ -23,47 +30,40 @@ def plotPath(destination,unit):
     if destination == unit.pos:
         eprint("at destination")
         return path
-    pos = path[-1]
-    surroundingTiles = []
-    
+
     #calculation
     optimalCell = None
     bestDist = sys.maxsize
-    while destination != path[-1] and len(path) < 30:
-        for direction in DIRECTIONS:
-            if direction != DIRECTIONS.CENTER:
-                surroundingTiles.append(pos.translate(direction, 1))
-                
+    currentCheckPos = unit.pos
+    while currentCheckPos != destination and len(path) < 30:
+        surroundingTiles = getSurroundingTiles(currentCheckPos,1)
         for cell in surroundingTiles:
             if cell.pos == destination:
                 eprint("adjacent to destination")
                 path.append(cell.pos)
                 return path
-        for x in range(-1,1):
-            for y in range(-1,1):
-                pos = path[-1]
-                if x == 0 ^ y == 0:
-                    challengerCell = game_state.map.get_cell(pos.x + x, pos.y +y)
-                else:
-                    continue
-                if challengerCell in forbiddenTiles:
-                    continue
 
-                if challengerCell.pos == destination:
-                    path.append(destination)
-                    eprint("challenger was dest. added to path.")
-                    return path
+            challengerCell = game_state.map.get_cell_by_pos(getSurroundingTiles(currentCheckPos,1))
 
-                dist = challengerCell.pos.distance_to(destination)
-                if dist < bestDist:
-                    bestDist = dist
-                    optimalCell = challengerCell
-                    eprint("found better cell at", optimalCell.pos.x, optimalCell.pos.y)
+            if challengerCell in forbiddenTiles:
+                continue
+
+            if challengerCell.pos == destination:
+                path.append(destination)
+                eprint("challenger was dest. added to path.")
+                return path
+
+            dist = challengerCell.pos.distance_to(destination)
+            if dist < bestDist:
+                bestDist = dist
+                optimalCell = challengerCell
+                eprint("found better cell at", optimalCell.pos.x, optimalCell.pos.y)
 
         #if path.__contains__(optimalCell.pos):
             #eprint("path contains optimalCell already: ",optimalCell.pos.x, optimalCell.pos.y, ". My position is ",unit.pos.x,unit.pos.y,"My destination is ",destination.x,destination.y)
             #return path 
         path.append(optimalCell.pos)
+        currentCheckPos = optimalCell.pos
     if len(path) >= 28: #prevent timeout
         path = [path[1]]
         eprint("timeout")
@@ -88,12 +88,9 @@ def calcCooldownToDest(destination,unit):
 
 def move(unit, dest,actions):
     eprint("trying to move to dest: ",dest)
-    surroundingTiles = []
+    surroundingTiles = getSurroundingTiles
     pos = unit.pos
-    for x in range(-1, 1):
-        for y in range(-1, 1):
-            if x == 0 or y == 0:
-                surroundingTiles.append(game_state.map.get_cell(pos.x + x, pos.y + y))
+
     for cell in surroundingTiles:
         if cell.pos == dest and cell.has_resource(): ## return if next to destination and dest is resource
             return
