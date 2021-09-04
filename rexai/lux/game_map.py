@@ -23,6 +23,7 @@ class Cell:
         return self.resource is not None and self.resource.amount > 0
 
 
+
 class GameMap:
     def __init__(self, width, height):
         self.height = height
