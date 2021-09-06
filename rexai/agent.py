@@ -14,7 +14,8 @@ game_state = None
 def getSurroundingTiles(pos, dist):
     surroundingTiles = []
     for direct in DIR_LIST:
-        if pos.translate(direct, dist).x < game_state.map.width and pos.translate(direct, dist).y < game_state.map.height:
+        if pos.translate(direct, dist).x < game_state.map.width and pos.translate(direct,
+                                                                                  dist).y < game_state.map.height:
             surroundingTiles.append(game_state.map.get_cell_by_pos(pos.translate(direct, dist)))
     return surroundingTiles
 
@@ -66,6 +67,7 @@ def agent(observation, configuration):
             else:
                 cell.blocked = False
             cell.adjRes = []
+            cell.visited = False;
     for unit in opponent.units:
         game_state.map.get_cell_by_pos(unit.pos).blocked = True
 
@@ -90,8 +92,23 @@ def agent(observation, configuration):
     return actions
 
 
-def targetResource(unit, resourceTiles, player, actions):
+def simulateTurns(adjResTiles, unitCargoSpace):
+    tileCopy = adjResTiles.copy()
+    turn = 0
+    depletedTiles = 0
+    while True:
+        if unitCargoSpace <= 0 or depletedTiles == len(adjResTiles):
+            return turn
+        turn += 1
+        for tile in tileCopy:
+            unitCargoSpace -= tile.resource.mineRate
+            tile.resource.amount -= tile.resource.mineRate
+            if tile.resource.amount <= 0:
+                depletedTiles += 1
+                tileCopy.remove(tile)
 
+
+def targetResource(unit, resourceTiles, player, actions):
     ## STILL NOT ACCURATE, RETURNS VERY BAD TILES ##
 
     tileOptions = []
@@ -100,14 +117,15 @@ def targetResource(unit, resourceTiles, player, actions):
             tile = game_state.map.get_cell(x, y)
             for dir in DIR_LIST:
                 if (tile.pos.translate(dir, 1).x in range(0, game_state.map_width) and
-                    tile.pos.translate(dir, 1).y in range(0, game_state.map_height)):
+                        tile.pos.translate(dir, 1).y in range(0, game_state.map_height)):
 
                     # makes a list of all tiles next to resources
                     adjTile = tileFromPos(tile.pos.translate(dir, 1))
-                    if (adjTile.has_resource() and (adjTile.resource.type == "wood" or 
-                        (adjTile.resource.type == "coal" and player.researched_coal()) or 
-                        (adjTile.resource.type == "uranium" and player.researched_uranium()))):
-                        
+                    if (adjTile.has_resource() and (adjTile.resource.type == "wood" or
+                                                    (adjTile.resource.type == "coal" and player.researched_coal()) or
+                                                    (
+                                                            adjTile.resource.type == "uranium" and player.researched_uranium()))):
+
                         # each of those tiles has a list of resources next to it
                         tile.adjRes.append(adjTile)
                         if tile not in tileOptions:
@@ -123,15 +141,18 @@ def targetResource(unit, resourceTiles, player, actions):
         for adjTile in tile.adjRes:
             if adjTile.resource.type == "wood":
                 woodGain += adjTile.resource.mineRate
-                turnOptions.append(min(adjTile.resource.amount, (100 - unit.cargo.wood) / adjTile.resource.mineRate))
+                turnOptions.append(
+                    min(adjTile.resource.amount, unit.get_cargo_space_left()) / adjTile.resource.mineRate)
             elif adjTile.resource.type == "coal":
                 coalGain += adjTile.resource.mineRate
-                turnOptions.append(min(adjTile.resource.amount, (100 - unit.cargo.coal) / adjTile.resource.mineRate))
+                turnOptions.append(
+                    min(adjTile.resource.amount, unit.get_cargo_space_left() / adjTile.resource.mineRate))
             elif adjTile.resource.type == "uranium":
                 uraniumGain += adjTile.resource.mineRate
-                turnOptions.append(min(adjTile.resource.amount, (100 - unit.cargo.uranium) / adjTile.resource.mineRate))
-        
-        turnsAtDest = min(turnOptions)
+                turnOptions.append(
+                    min(adjTile.resource.amount, unit.get_cargo_space_left() / adjTile.resource.mineRate))
+
+        turnsAtDest = simulateTurns(tile.adjRes, unit.get_cargo_space_left())  # simulating the turns seems simpler
 
         # total resources after the turns spent at dest
         totalWood = unit.cargo.wood + (min(woodGain, (100 - unit.cargo.wood)) * turnsAtDest)
@@ -197,9 +218,9 @@ def targetCity(unit, player):
 
 
 def recursivePath(tile, dest, path):
-    if tile.blocked:
+    if tile.blocked or tile.visited:
         return False
-    tile.blocked = True
+    tile.visited = True
     surrounding = getSurroundingTiles(tile.pos, 1)
     if game_state.map.get_cell_by_pos(dest) in surrounding:
         path.append(dest)
@@ -228,7 +249,8 @@ def findPath(unit, dest, actions, doAnnotate):
             actions.append(annotate.x(tiles.x, tiles.y))
     return path
 
-def move(unit,dest,actions):
-    path = findPath(unit,dest,actions,True)
+
+def move(unit, dest, actions):
+    path = findPath(unit, dest, actions, True)
     if len(path):
         actions.append(unit.move(unit.pos.direction_to(path[0])))
