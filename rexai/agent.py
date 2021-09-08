@@ -84,6 +84,7 @@ def agent(observation, configuration):
             else:
                 # if unit is a worker and there is no cargo space left, and we have cities, lets return to them
                 eprint("cargo full")
+                cityPlanner(unit)
                 move(unit, targetCity(unit, player), actions)
 
     # you can add debug annotations using the functions in the annotate object
@@ -106,8 +107,19 @@ def simulateTurns(adjResTiles, unitCargoSpace):
             if tile.resource.amount <= 0:
                 depletedTiles += 1
                 tileCopy.remove(tile)
+def nextToCity(unit):
+    return any(
+        map(lambda t: t.citytile and t.citytile.id == game_state.players[game_state.id], getSurroundingTiles(unit.pos)))
+def turnsUntilNight():
+    return max(30-game_state.turn%40,0)
+def nightRemaining():
+    return min(39-(game_state.turn%40),10)
 
-
+def cityPlanner(unit):
+        if unit.can_act and nextToCity(unit) and unit.get_cargo_space_left() == 0:
+            unitTile = game_state.game_map.get_tile_by_pos(unit.pos)
+            if not unitTile.has_resource() and not unitTile.citytile and turnsUntilNight()>10:
+                unit.build_city()
 def targetResource(unit, resourceTiles, player, actions):
     ## STILL NOT ACCURATE, RETURNS VERY BAD TILES ##
 
@@ -162,8 +174,14 @@ def targetResource(unit, resourceTiles, player, actions):
         # total length of trip     -- has to change once roads implemented   | ************************** |
         rndTripLength = (unit.pos.distance_to(tile.pos) * 2 + turnsAtDest) * (2 if unit.is_worker() else 3)
         # turns of that trip during the night
-        nightTurns = (rndTripLength + (game_state.turn % 40)) - 30
-        nightTurns = nightTurns if nightTurns > 0 else 0
+        nightTurns2 = (rndTripLength + (game_state.turn % 40)) - 30
+        nightTurns = min(max(rndTripLength-turnsUntilNight(),0),nightRemaining())
+        nightTurns2 = nightTurns2 if nightTurns2 > 0 else 0
+        # if nightTurns != nightTurns2:
+        #     eprint("not equivalent on turn ",game_state.turn%40,"with trip length ",rndTripLength,". nighturns: ",nightTurns," nightTurns2: ",nightTurns2)
+        # else:
+        #     eprint("equal on turn ",game_state.turn%40,"with trip length ",rndTripLength)
+
         # amount of fuel needed to last that many night turns
         fuelBurned = nightTurns * (4 if unit.is_worker() else 10)
 
