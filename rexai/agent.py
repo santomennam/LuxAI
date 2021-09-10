@@ -14,8 +14,7 @@ game_state = None
 def getSurroundingTiles(pos, dist):
     surroundingTiles = []
     for direct in DIR_LIST:
-        if pos.translate(direct, dist).x < game_state.map.width and pos.translate(direct,
-                                                                                  dist).y < game_state.map.height:
+        if pos.translate(direct, dist).x < game_state.map.width and pos.translate(direct, dist).y < game_state.map.height:
             surroundingTiles.append(game_state.map.get_cell_by_pos(pos.translate(direct, dist)))
     return surroundingTiles
 
@@ -84,8 +83,10 @@ def agent(observation, configuration):
             else:
                 # if unit is a worker and there is no cargo space left, and we have cities, lets return to them
                 eprint("cargo full")
-                cityPlanner(unit)
-                move(unit, targetCity(unit, player), actions)
+                if(cityPlanner(unit,actions)):
+                    continue
+                else:
+                    move(unit, targetCity(unit, player), actions)
 
     # you can add debug annotations using the functions in the annotate object
     # actions.append(annotate.circle(0, 0))
@@ -107,19 +108,40 @@ def simulateTurns(adjResTiles, unitCargoSpace):
             if tile.resource.amount <= 0:
                 depletedTiles += 1
                 tileCopy.remove(tile)
+
 def nextToCity(unit):
+    eprint("expression:",list(map(lambda t: t.citytile is not None and t.citytile.team == game_state.players[game_state.id], getSurroundingTiles(unit.pos,1))))
+    eprint("any:", any(
+        map(lambda t: t.citytile is not None and t.citytile.team == game_state.players[game_state.id], getSurroundingTiles(unit.pos,1)))
+)
     return any(
-        map(lambda t: t.citytile and t.citytile.id == game_state.players[game_state.id], getSurroundingTiles(unit.pos)))
+        list(map(lambda t: t.citytile is not None and t.citytile.team == game_state.players[game_state.id], getSurroundingTiles(unit.pos,1))))
+
 def turnsUntilNight():
     return max(30-game_state.turn%40,0)
+
 def nightRemaining():
     return min(39-(game_state.turn%40),10)
 
-def cityPlanner(unit):
-        if unit.can_act and nextToCity(unit) and unit.get_cargo_space_left() == 0:
-            unitTile = game_state.game_map.get_tile_by_pos(unit.pos)
-            if not unitTile.has_resource() and not unitTile.citytile and turnsUntilNight()>10:
-                unit.build_city()
+def numResTiles(tiles):
+    num = 0
+    for tile in tiles:
+        if tile.resource:
+            num +=1
+    return num
+
+def cityPlanner(unit,actions):
+    eprint("unit pos:",unit.pos.x,unit.pos.y,"can act: ",unit.can_act(),"nextToCity:",nextToCity(unit), "numResTiles:",numResTiles(getSurroundingTiles(unit.pos,1)),"cargo space:",unit.get_cargo_space_left())
+    if unit.can_act() and (nextToCity(unit) or numResTiles(getSurroundingTiles(unit.pos,1)) >= 3) and unit.get_cargo_space_left() == 0:
+        eprint("Trying to build city")
+        unitTile = game_state.map.get_cell_by_pos(unit.pos)
+        eprint("can_build:",unit.can_build(game_state.map))
+        if not unitTile.has_resource() and not unitTile.citytile and turnsUntilNight()>10 and unit.can_build(game_state.map):
+            actions.append(unit.build_city())
+            eprint("built city!")
+            return True
+    return False
+
 def targetResource(unit, resourceTiles, player, actions):
     ## STILL NOT ACCURATE, RETURNS VERY BAD TILES ##
 
@@ -130,14 +152,11 @@ def targetResource(unit, resourceTiles, player, actions):
             for dir in DIR_LIST:
                 if (tile.pos.translate(dir, 1).x in range(0, game_state.map_width) and
                         tile.pos.translate(dir, 1).y in range(0, game_state.map_height)):
-
                     # makes a list of all tiles next to resources
                     adjTile = tileFromPos(tile.pos.translate(dir, 1))
                     if (adjTile.has_resource() and (adjTile.resource.type == "wood" or
                                                     (adjTile.resource.type == "coal" and player.researched_coal()) or
-                                                    (
-                                                            adjTile.resource.type == "uranium" and player.researched_uranium()))):
-
+                                                    (adjTile.resource.type == "uranium" and player.researched_uranium()))):
                         # each of those tiles has a list of resources next to it
                         tile.adjRes.append(adjTile)
                         if tile not in tileOptions:
@@ -203,8 +222,9 @@ def targetResource(unit, resourceTiles, player, actions):
 
         # the tile that nets the highest fuel per turn becomes the target
         if (target == None or (fuelPerTurn > target.fuelPerTurn)):
-            target = tile
-            target.fuelPerTurn = fuelPerTurn
+            if not tile.blocked:
+                target = tile
+                target.fuelPerTurn = fuelPerTurn
 
     if target == None:
         eprint("no target in range")
@@ -232,6 +252,7 @@ def targetCity(unit, player):
             eprint("city at ", closest_city_tile.pos.x, ", ", closest_city_tile.pos.y)
             return closest_city_tile.pos
         else:
+            eprint("No city!!")
             return unit.pos
 
 
