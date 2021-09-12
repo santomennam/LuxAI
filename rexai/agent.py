@@ -130,6 +130,28 @@ def numResTiles(tiles):
             num +=1
     return num
 
+player = game_state.players[game_state.id]
+
+def unassignedTilesInCity(city):
+    unassigned = 0
+    for tile in city.citytiles:
+        if tile.assignedUnit is None:
+            unassigned +=1
+    return unassigned
+
+def mostUnassigned():
+    cities = player.cities
+    if len(cities):
+        cities.sort(key=lambda a: unassignedTilesInCity(a),reversed = True)
+        return cities[0]
+    return None
+
+def assignUnits():
+    for unit in player.units:
+        if unit.assignedCity is None:
+            if mostUnassigned():
+                unit.assignedCity = mostUnassigned()
+
 def cityPlanner(unit,actions):
     eprint("unit pos:",unit.pos.x,unit.pos.y,"can act: ",unit.can_act(),"nextToCity:",nextToCity(unit), "numResTiles:",numResTiles(getSurroundingTiles(unit.pos,1)),"cargo space:",unit.get_cargo_space_left())
     if unit.can_act() and (nextToCity(unit) or numResTiles(getSurroundingTiles(unit.pos,1)) >= 3) and unit.get_cargo_space_left() == 0:
@@ -143,7 +165,6 @@ def cityPlanner(unit,actions):
     return False
 
 def targetResource(unit, resourceTiles, player, actions):
-    ## STILL NOT ACCURATE, RETURNS VERY BAD TILES ##
 
     tileOptions = []
     for y in range(game_state.map_height):
@@ -161,7 +182,6 @@ def targetResource(unit, resourceTiles, player, actions):
                         tile.adjRes.append(adjTile)
                         if tile not in tileOptions:
                             tileOptions.append(tile)
-
     target = None
     for tile in tileOptions:
         woodGain = 0
@@ -271,10 +291,43 @@ def recursivePath(tile, dest, path):
             return True
     return False
 
+def cityActions():
+    pass
 
 def tileFromPos(pos):
     return game_state.map.get_cell_by_pos(pos)
 
+def cityTileFuelUse(tile):
+    surrounding = getSurroundingTiles(tile.pos,1)
+    surroundingCities = 0
+    for city in surrounding:
+        if city.citytile is not None and city.citytile.id == game_state.id:
+            surroundingCities += 1
+    return 23-(5*surroundingCities)
+
+def totalCityFuelUse(city):
+    totalFuel = 0
+    for tile in city.citytiles:
+        totalFuel += cityTileFuelUse(tile)
+    return totalFuel
+
+def buildWorker(citytile,actions):
+    fuel = citytile.fuel
+    fuelConsumed = totalCityFuelUse(citytile)
+    if citytile.can_act and unitCount() < totalCityTiles():
+        actions.append(citytile.build_worker)
+        return True
+    return False
+
+
+def unitCount():
+    return len(game_state.players[game_state.id].units)
+
+def totalCityTiles():
+    totalTiles = 0
+    for cities in game_state.players[game_state.id]:
+        totalTiles += len(cities.citytiles)
+    return totalTiles
 
 def findPath(unit, dest, actions, doAnnotate):
     eprint("My location: ", unit.pos)
