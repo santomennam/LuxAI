@@ -8,7 +8,6 @@ from lux import annotate
 
 DIRECTIONS = Constants.DIRECTIONS
 DIR_LIST = [DIRECTIONS.NORTH, DIRECTIONS.EAST, DIRECTIONS.SOUTH, DIRECTIONS.WEST]
-game_state = None
 
 
 def getSurroundingTiles(pos, dist):
@@ -87,6 +86,9 @@ def agent(observation, configuration):
                     continue
                 else:
                     move(unit, targetCity(unit, player), actions)
+    for city in player.cities.values():
+        cityActions(city,actions)
+
 
     # you can add debug annotations using the functions in the annotate object
     # actions.append(annotate.circle(0, 0))
@@ -130,8 +132,6 @@ def numResTiles(tiles):
             num +=1
     return num
 
-player = game_state.players[game_state.id]
-
 def unassignedTilesInCity(city):
     unassigned = 0
     for tile in city.citytiles:
@@ -140,25 +140,25 @@ def unassignedTilesInCity(city):
     return unassigned
 
 def mostUnassigned():
-    cities = player.cities
+    cities = game_state.players[game_state.id].cities.values()
     if len(cities):
         cities.sort(key=lambda a: unassignedTilesInCity(a),reversed = True)
         return cities[0]
     return None
 
 def assignUnits():
-    for unit in player.units:
+    for unit in game_state.players[game_state.id].units:
         if unit.assignedCity is None:
             if mostUnassigned():
                 unit.assignedCity = mostUnassigned()
 
 def cityPlanner(unit,actions):
     eprint("unit pos:",unit.pos.x,unit.pos.y,"can act: ",unit.can_act(),"nextToCity:",nextToCity(unit), "numResTiles:",numResTiles(getSurroundingTiles(unit.pos,1)),"cargo space:",unit.get_cargo_space_left())
-    if unit.can_act() and (nextToCity(unit) or numResTiles(getSurroundingTiles(unit.pos,1)) >= 3) and unit.get_cargo_space_left() == 0:
+    if unit.can_act() and (nextToCity(unit) or numResTiles(getSurroundingTiles(unit.pos,1)) >= 2) and unit.get_cargo_space_left() == 0:
         eprint("Trying to build city")
         unitTile = game_state.map.get_cell_by_pos(unit.pos)
         eprint("can_build:",unit.can_build(game_state.map))
-        if not unitTile.has_resource() and not unitTile.citytile and turnsUntilNight()>10 and unit.can_build(game_state.map):
+        if not unitTile.has_resource() and not unitTile.citytile and turnsUntilNight()>0 and unit.can_build(game_state.map):
             actions.append(unit.build_city())
             eprint("built city!")
             return True
@@ -259,7 +259,7 @@ def targetResource(unit, resourceTiles, player, actions):
 
 
 def targetCity(unit, player):
-    if len(player.cities) > 0:
+    if len(player.cities.values()) > 0:
         closest_dist = math.inf
         closest_city_tile = None
         for k, city in player.cities.items():
@@ -291,8 +291,22 @@ def recursivePath(tile, dest, path):
             return True
     return False
 
-def cityActions():
-    pass
+def cityActions(city,actions):
+    # makingWorkers = city.citytiles[:(len(city.citytiles)//2)]
+    # research = city.citytiles[(len(city.citytiles) // 2):]
+    # for citytile in research:
+    #     if citytile.cooldown <1:
+    #         actions.append(citytile.research())
+    #         eprint('research!:', game_state.players[game_state.id].research_points)
+    for citytile in city.citytiles:
+        if citytile.cooldown < 1:
+            if buildWorker(citytile,actions):
+                eprint("built a worker!")
+                continue
+            else:
+                actions.append(citytile.research())
+                eprint('research!:', game_state.players[game_state.id].research_points)
+
 
 def tileFromPos(pos):
     return game_state.map.get_cell_by_pos(pos)
@@ -312,10 +326,8 @@ def totalCityFuelUse(city):
     return totalFuel
 
 def buildWorker(citytile,actions):
-    fuel = citytile.fuel
-    fuelConsumed = totalCityFuelUse(citytile)
     if citytile.can_act and unitCount() < totalCityTiles():
-        actions.append(citytile.build_worker)
+        actions.append(citytile.build_worker())
         return True
     return False
 
@@ -325,7 +337,7 @@ def unitCount():
 
 def totalCityTiles():
     totalTiles = 0
-    for cities in game_state.players[game_state.id]:
+    for cities in game_state.players[game_state.id].cities.values():
         totalTiles += len(cities.citytiles)
     return totalTiles
 
