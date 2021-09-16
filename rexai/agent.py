@@ -22,7 +22,8 @@ def getSurroundingTiles(pos, dist):
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
-
+global registeredCartIDs
+registeredCartIDs = []
 def agent(observation, configuration):
     global game_state
 
@@ -72,8 +73,12 @@ def agent(observation, configuration):
 
     # we iterate over all our units and do something with them
     for unit in player.units:
-        if unit.is_cart() and unit.can_act():
-            cartLogic(unit,actions)
+        if unit.is_cart():
+            if unit.id not in registeredCartIDs:
+                registerCart(unit)
+                registeredCartIDs.append(unit.id)
+            if unit.can_act():
+                cartLogic(unit,actions)
         unit.cargo.total = unit.cargo.wood + unit.cargo.coal + unit.cargo.uranium
         if unit.is_worker() and unit.can_act():
             if unit.get_cargo_space_left() > 0:
@@ -98,6 +103,9 @@ def agent(observation, configuration):
 
     return actions
 
+def registerCart(cart):
+    cart.goingHome = False
+    cart.dest = None
 
 def simulateTurns(adjResTiles, unitCargoSpace):
     tileCopy = adjResTiles.copy()
@@ -327,7 +335,7 @@ def cityActions(city, actions):
     for citytile in city.citytiles:
         if citytile.cooldown < 1:
             if numWorkers()%4 == 0:
-                if(buildCart(citytile,actions)):
+                if buildCart(citytile, actions):
                     eprint("built a cart!")
                     continue
             elif buildWorker(citytile, actions):
