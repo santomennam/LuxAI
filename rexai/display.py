@@ -28,6 +28,11 @@ class GameDisplay:
 
         self.basicFont = pygame.font.SysFont(None, 18)
 
+
+
+    def cell_rect(self, x, y):
+        return Rect(x * self.cell_size+self.margin, y * self.cell_size+self.margin, self.cell_size, self.cell_size)
+
     def draw_resource(self, rect, resource):
         # pygame.draw.rect(self.window, resource_color[resource.type], rect)
         text = self.basicFont.render('{}'.format(resource.amount), True, WHITE, resource_color[resource.type])
@@ -37,17 +42,16 @@ class GameDisplay:
         self.window.blit(text, textRect)
 
     def draw(self, observation, game_state, messages):
-        # set up the text
 
         width = self.window.get_rect().width
         height = self.window.get_rect().height
 
-        margin = 10
+        self.margin = 10
 
-        cell_width = (width-margin*2) / game_state.map.width
-        cell_height = (height-margin*2) / game_state.map.height
+        cell_width = (width-self.margin*2) / game_state.map.width
+        cell_height = (height-self.margin*2) / game_state.map.height
 
-        cell_size = min(cell_width, cell_height)
+        self.cell_size = min(cell_width, cell_height)
 
         # text = basicFont.render('Step: {}'.format(game_state.turn), True, WHITE, BLUE)
         # textRect = text.get_rect()
@@ -60,11 +64,8 @@ class GameDisplay:
         for y in range(game_state.map.width):
             for x in range(game_state.map.height):
                 cell = game_state.map.get_cell(x, y)
-                cell_rect = Rect(x * cell_size+margin, y * cell_size+margin, cell_size - 2, cell_size - 2)
                 if cell.has_resource():
-                    self.draw_resource(cell_rect, cell.resource)
-                    # pygame.draw.rect(self.window, RED,
-                    #                  (x * cell_size, y * cell_size, cell_size - 2, cell_size - 2))
+                    self.draw_resource(self.cell_rect(x,y), cell.resource)
 
         player = game_state.players[observation.player]
         opponent = game_state.players[(observation.player + 1) % 2]
@@ -73,18 +74,16 @@ class GameDisplay:
         for unit in player.units:
             x = unit.pos.x
             y = unit.pos.y
-            cell_rect = Rect(x * cell_size + margin, y * cell_size + margin, cell_size - 2, cell_size - 2)
-            pygame.draw.ellipse(self.window, GREEN, cell_rect, 2)
+            pygame.draw.ellipse(self.window, GREEN, self.cell_rect(x,y), 2)
             if unit.is_worker() and unit.can_act():
-                pygame.draw.ellipse(self.window, BLACK, cell_rect.inflate(-4, -4), 3)
+                pygame.draw.ellipse(self.window, BLACK, self.cell_rect(x,y).inflate(-4, -4), 3)
 
         for unit in opponent.units:
             x = unit.pos.x
             y = unit.pos.y
-            cell_rect = Rect(x * cell_size + margin, y * cell_size + margin, cell_size - 2, cell_size - 2)
-            pygame.draw.ellipse(self.window, RED, cell_rect, 2)
+            pygame.draw.ellipse(self.window, RED, self.cell_rect(x,y), 2)
             if unit.is_worker() and unit.can_act():
-                pygame.draw.ellipse(self.window, BLACK, cell_rect.inflate(-4, -4), 3)
+                pygame.draw.ellipse(self.window, BLACK, self.cell_rect(x,y).inflate(-4, -4), 3)
             # if unit.is_worker() and unit.can_act():
 
         # # draw a green polygon onto the surface
@@ -110,7 +109,7 @@ class GameDisplay:
         messages.insert(0, 'Step: {}'.format(game_state.turn))
         messages.insert(1, '# Actions: {}'.format(action_count))
 
-        msg_rect = Rect(game_state.map.height*cell_size+10, 20, (game_state.map.width-game_state.map.height)*cell_size, 20)
+        msg_rect = Rect(game_state.map.height*self.cell_size+10, 20, (game_state.map.width-game_state.map.height)*self.cell_size, 20)
         for msg in messages:
             msg_text = self.basicFont.render(msg, True, BLACK, WHITE)
             self.window.blit(msg_text, msg_rect)
