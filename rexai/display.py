@@ -4,6 +4,7 @@ environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
 import pygame, sys
 from pygame.locals import *
 from lux.constants import Constants
+from lux.game_map import Position, Cell
 
 # set up the colors
 BLACK = (0, 0, 0)
@@ -18,6 +19,9 @@ resource_color = {Constants.RESOURCE_TYPES.COAL: BLACK,
 
 gameDisplay = None
 
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
+
 class GameDisplay:
     def __init__(self):
         if not pygame.get_init():
@@ -28,10 +32,16 @@ class GameDisplay:
 
         self.basicFont = pygame.font.SysFont(None, 18)
 
+    def all_positions(self):
+        for x in range(self.game_state.map.width):
+            for y in range(self.game_state.map.height):
+                yield Position(x,y)
 
+    def all_cells(self):
+        return map(lambda p: self.get_cell(p), self.all_positions())
 
-    def cell_rect(self, x, y):
-        return Rect(x * self.cell_size+self.margin, y * self.cell_size+self.margin, self.cell_size, self.cell_size)
+    def cell_rect(self, pos):
+        return Rect(pos.x * self.cell_size+self.margin, pos.y * self.cell_size+self.margin, self.cell_size, self.cell_size)
 
     def draw_resource(self, rect, resource):
         # pygame.draw.rect(self.window, resource_color[resource.type], rect)
@@ -41,7 +51,21 @@ class GameDisplay:
         textRect.centery = rect.centery
         self.window.blit(text, textRect)
 
+    def get_cell(self, x, y = None) -> Cell:
+        eprint(x)
+        eprint(y)
+        if y is None:
+            return self.game_state.map.get_cell(x.x, x.y)
+        return self.game_state.map.get_cell(x, y)
+
+    def draw_unit(self, unit, color):
+        pygame.draw.ellipse(self.window, color, self.cell_rect(unit.pos), 2)
+        if unit.is_worker() and unit.can_act():
+            pygame.draw.ellipse(self.window, BLACK, self.cell_rect(unit.pos).inflate(-4, -4), 3)
+
     def draw(self, observation, game_state, messages):
+
+        self.game_state = game_state
 
         width = self.window.get_rect().width
         height = self.window.get_rect().height
@@ -53,56 +77,27 @@ class GameDisplay:
 
         self.cell_size = min(cell_width, cell_height)
 
-        # text = basicFont.render('Step: {}'.format(game_state.turn), True, WHITE, BLUE)
-        # textRect = text.get_rect()
-        # textRect.centerx = self.window.get_rect().centerx
-        # textRect.centery = self.window.get_rect().centery
-
         # draw the white background onto the surface
         self.window.fill(WHITE)
 
-        for y in range(game_state.map.width):
-            for x in range(game_state.map.height):
-                cell = game_state.map.get_cell(x, y)
-                if cell.has_resource():
-                    self.draw_resource(self.cell_rect(x,y), cell.resource)
+        for cell in self.all_cells():
+            if cell.has_resource():
+                self.draw_resource(self.cell_rect(cell.pos), cell.resource)
 
         player = game_state.players[observation.player]
         opponent = game_state.players[(observation.player + 1) % 2]
 
-        # we iterate over all our units and do something with them
         for unit in player.units:
-            x = unit.pos.x
-            y = unit.pos.y
-            pygame.draw.ellipse(self.window, GREEN, self.cell_rect(x,y), 2)
-            if unit.is_worker() and unit.can_act():
-                pygame.draw.ellipse(self.window, BLACK, self.cell_rect(x,y).inflate(-4, -4), 3)
+            self.draw_unit(unit, GREEN)
 
         for unit in opponent.units:
-            x = unit.pos.x
-            y = unit.pos.y
-            pygame.draw.ellipse(self.window, RED, self.cell_rect(x,y), 2)
-            if unit.is_worker() and unit.can_act():
-                pygame.draw.ellipse(self.window, BLACK, self.cell_rect(x,y).inflate(-4, -4), 3)
-            # if unit.is_worker() and unit.can_act():
+            self.draw_unit(unit, RED)
 
-        # # draw a green polygon onto the surface
+        # sample drawing commands
         # pygame.draw.polygon(self.window, GREEN, ((146, 0), (291, 106), (236, 277), (56, 277), (0, 106)))
-        #
-        # # draw some blue lines onto the surface
         # pygame.draw.line(self.window, BLUE, (60, 60), (120, 60), 4)
-        # pygame.draw.line(self.window, BLUE, (120, 60), (60, 120))
-        # pygame.draw.line(self.window, BLUE, (60, 120), (120, 120), 4)
-        #
-        # # draw a blue circle onto the surface
         # pygame.draw.circle(self.window, BLUE, (300, 50), 20, 0)
-        #
-        # # draw a red ellipse onto the surface
         # pygame.draw.ellipse(self.window, RED, (300, 250, 40, 80), 1)
-
-        # draw the text's background rectangle onto the surface
-        # pygame.draw.rect(self.window, RED,
-        #                  (textRect.left - 20, textRect.top - 20, textRect.width + 40, textRect.height + 40))
 
         action_count = len(messages)
 
@@ -115,15 +110,6 @@ class GameDisplay:
             self.window.blit(msg_text, msg_rect)
             msg_rect = msg_rect.move(0, 20)
 
-        # # get a pixel array of the surface
-        # pixArray = pygame.PixelArray(self.window)
-        # pixArray[480][380] = BLACK
-        # del pixArray
-
-        # draw the text onto the surface
-        # self.window.blit(text, textRect)
-
-        # draw the window onto the screen
         pygame.display.update()
 
 
