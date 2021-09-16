@@ -22,8 +22,7 @@ def getSurroundingTiles(pos, dist):
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
-global registeredCartIDs
-registeredCartIDs = []
+registeredCartIDs=[]
 def agent(observation, configuration):
     global game_state
 
@@ -73,6 +72,9 @@ def agent(observation, configuration):
 
     # we iterate over all our units and do something with them
     for unit in player.units:
+        if not game_state.map.get_cell_by_pos(unit.pos).citytile:
+            game_state.map.get_cell_by_pos(unit.pos).blocked = True
+    for unit in player.units:
         if unit.is_cart():
             if unit.id not in registeredCartIDs:
                 registerCart(unit)
@@ -85,8 +87,6 @@ def agent(observation, configuration):
                 target = targetResource(unit, resource_tiles, player, actions)
                 if not target.equals(unit.pos):
                     move(unit, target, actions)
-                elif not game_state.map.get_cell_by_pos(unit.pos).citytile:
-                    game_state.map.get_cell_by_pos(unit.pos).blocked = True
             else:
                 # if unit is a worker and there is no cargo space left, and we have cities, lets return to them
                 eprint("cargo full")
@@ -298,9 +298,10 @@ def targetCity(unit, player):
         if closest_city_tile != None:
             eprint("city at ", closest_city_tile.pos.x, ", ", closest_city_tile.pos.y)
             return closest_city_tile.pos
-        else:
-            eprint("No city!!")
-            return unit.pos
+    else:
+        eprint("No city!!")
+        return unit.pos
+
 
 
 def recursivePath(tile, dest, path):
@@ -334,7 +335,7 @@ def numCarts():
 def cityActions(city, actions):
     for citytile in city.citytiles:
         if citytile.cooldown < 1:
-            if numWorkers()%4 == 0:
+            if len(game_state.players[game_state.id].units)%4 == 0:
                 if buildCart(citytile, actions):
                     eprint("built a cart!")
                     continue
@@ -363,9 +364,10 @@ def getSurroundingUnits(pos):
     return units
 
 def inCity(pos):
-    for city in game_state.players[game_state.id].cities.citytiles:
-        if pos == city.pos:
-            return True
+    for city in game_state.players[game_state.id].cities.values():
+        for tile in city.citytiles:
+            if pos == tile.pos:
+                return True
     return False
 
 def cartLogic(cart, actions):
@@ -455,6 +457,8 @@ def findPath(unit, dest, actions, doAnnotate):
 
 
 def move(unit, dest, actions):
+    if dest is None:
+       eprint("WHAT! DEST IS NONE! Unit ID = ",unit.id)
     path = findPath(unit, dest, actions, True)
     if len(path):
         actions.append(unit.move(unit.pos.direction_to(path[0])))
