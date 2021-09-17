@@ -27,6 +27,9 @@ if __name__ == "__main__":
     observation["updates"] = []
     observation["step"] = 0
     player_id = 0
+
+    pygame.time.set_timer( pygame.USEREVENT, 200)
+
     while True:
         take_step = False
         for event in pygame.event.get():
@@ -35,6 +38,7 @@ if __name__ == "__main__":
                 sys.exit()
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
+                    pygame.time.set_timer(pygame.USEREVENT, 0)
                     take_step = True
                 # elif event.key == pygame.K_a:
                 #     # print("Player moved left!")
@@ -42,6 +46,8 @@ if __name__ == "__main__":
                 #     # print("Player moved down!")
                 # elif event.key == pygame.K_d:
                 #     # print("Player moved right!")
+            elif event.type ==  pygame.USEREVENT:
+                take_step = True
 
         pygame.display.update()
 

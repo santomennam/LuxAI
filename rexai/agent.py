@@ -38,7 +38,10 @@ def agent(observation, configuration):
 
     actions = []
 
-    ### AI Code goes down here! ### 
+
+    ### AI Code goes down here! ###
+    display.draw_map_underlay(observation, game_state)
+
     player = game_state.players[observation.player]
     opponent = game_state.players[(observation.player + 1) % 2]
     width, height = game_state.map.width, game_state.map.height
@@ -102,7 +105,7 @@ def agent(observation, configuration):
     # you can add debug annotations using the functions in the annotate object
     # actions.append(annotate.circle(0, 0))
 
-    display.draw_map(observation, game_state, actions.copy())
+    display.draw_map_overlay(observation, game_state, actions.copy())
 
     return actions
 

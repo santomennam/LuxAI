@@ -40,30 +40,34 @@ class GameDisplay:
     def all_cells(self):
         return map(lambda p: self.get_cell(p), self.all_positions())
 
+    def all_city_tiles(self, player):
+        for k, city in player.cities.items():
+            for city_tile in city.citytiles:
+                yield city_tile
+
     def cell_rect(self, pos):
         return Rect(pos.x * self.cell_size+self.margin, pos.y * self.cell_size+self.margin, self.cell_size, self.cell_size)
 
     def draw_resource(self, rect, resource):
-        # pygame.draw.rect(self.window, resource_color[resource.type], rect)
+        pygame.draw.rect(self.window, resource_color[resource.type], rect.inflate(-8, -8), 1)
         text = self.basicFont.render('{}'.format(resource.amount), True, WHITE, resource_color[resource.type])
         textRect = text.get_rect()
         textRect.centerx = rect.centerx
         textRect.centery = rect.centery
         self.window.blit(text, textRect)
 
-    def get_cell(self, x, y = None) -> Cell:
-        eprint(x)
-        eprint(y)
-        if y is None:
-            return self.game_state.map.get_cell(x.x, x.y)
-        return self.game_state.map.get_cell(x, y)
+    def get_cell(self, pos) -> Cell:
+        return self.game_state.map.get_cell(pos.x, pos.y)
 
     def draw_unit(self, unit, color):
         pygame.draw.ellipse(self.window, color, self.cell_rect(unit.pos), 2)
         if unit.is_worker() and unit.can_act():
             pygame.draw.ellipse(self.window, BLACK, self.cell_rect(unit.pos).inflate(-4, -4), 3)
 
-    def draw(self, observation, game_state, messages):
+    def draw_city(self, tile, color):
+        pygame.draw.rect(self.window, color, self.cell_rect(tile.pos), 2)
+
+    def drawUnderlay(self, observation, game_state):
 
         self.game_state = game_state
 
@@ -87,11 +91,19 @@ class GameDisplay:
         player = game_state.players[observation.player]
         opponent = game_state.players[(observation.player + 1) % 2]
 
+        for tile in self.all_city_tiles(player):
+            self.draw_city(tile, GREEN)
+
+        for tile in self.all_city_tiles(opponent):
+            self.draw_city(tile, RED);
+
         for unit in player.units:
             self.draw_unit(unit, GREEN)
 
         for unit in opponent.units:
             self.draw_unit(unit, RED)
+
+    def drawOverlay(self, observation, game_state, messages):
 
         # sample drawing commands
         # pygame.draw.polygon(self.window, GREEN, ((146, 0), (291, 106), (236, 277), (56, 277), (0, 106)))
@@ -112,11 +124,12 @@ class GameDisplay:
 
         pygame.display.update()
 
-
 def init_display():
     global gameDisplay
     gameDisplay = GameDisplay()
 
-def draw_map(observation, game_state, messages):
-    gameDisplay.draw(observation, game_state, messages)
+def draw_map_underlay(observation, game_state):
+    gameDisplay.drawUnderlay(observation, game_state)
 
+def draw_map_overlay(observation, game_state, messages):
+    gameDisplay.drawOverlay(observation, game_state, messages)
