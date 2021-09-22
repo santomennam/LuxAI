@@ -67,9 +67,15 @@ class GameDisplay:
         return self.game_state.map.get_cell(pos.x, pos.y)
 
     def draw_unit(self, unit, color):
-        pygame.draw.ellipse(self.window, color, self.cell_rect(unit.pos), 2)
-        if unit.is_worker() and unit.can_act():
-            pygame.draw.ellipse(self.window, BLACK, self.cell_rect(unit.pos).inflate(-4, -4), 3)
+        if unit.is_cart():
+            pygame.draw.rect(self.window, color, self.cell_rect(unit.pos), 2)
+            if unit.can_act():
+                pygame.draw.rect(self.window, BLACK, self.cell_rect(unit.pos).inflate(-4, -4), 3)
+        if unit.is_worker():
+            pygame.draw.ellipse(self.window, color, self.cell_rect(unit.pos), 2)
+            if unit.can_act():
+                pygame.draw.ellipse(self.window, BLACK, self.cell_rect(unit.pos).inflate(-4, -4), 3)
+
 
     def draw_city(self, city, tile, color):
         rect = self.cell_rect(tile.pos)
