@@ -31,6 +31,7 @@ class GameDisplay:
         pygame.display.set_caption('Lux')
 
         self.basicFont = pygame.font.SysFont(None, 18)
+        self.paths = []
 
     def all_positions(self):
         for x in range(self.game_state.map.width):
@@ -75,8 +76,11 @@ class GameDisplay:
         pygame.draw.rect(self.window, color, rect, 2)
         self.draw_number(rect, WHITE, BLACK, city.fuel)
 
-    def drawUnderlay(self, observation, game_state):
+    def add_path(self, path):
+        self.paths.append(path)
 
+    def drawUnderlay(self, observation, game_state):
+        self.paths = []
         self.game_state = game_state
 
         width = self.window.get_rect().width
@@ -113,6 +117,9 @@ class GameDisplay:
 
     def drawOverlay(self, observation, game_state, messages):
 
+        # for path in self.paths:
+
+            
         # sample drawing commands
         # pygame.draw.polygon(self.window, GREEN, ((146, 0), (291, 106), (236, 277), (56, 277), (0, 106)))
         # pygame.draw.line(self.window, BLUE, (60, 60), (120, 60), 4)
@@ -141,3 +148,6 @@ def draw_map_underlay(observation, game_state):
 
 def draw_map_overlay(observation, game_state, messages):
     gameDisplay.drawOverlay(observation, game_state, messages)
+
+def draw_path(path):
+    gameDisplay.add_path(path)
