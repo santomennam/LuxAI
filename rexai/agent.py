@@ -99,10 +99,13 @@ def agent(observation, configuration):
                 else:
                     if targetCity(unit, player):
                         move(unit, targetCity(unit, player), actions)
+                        continue
                     else:
                         for tile in getSurroundingTiles(unit.pos,1):
-                            if not tile.resource:
+                            if not tile.resource and not tile.blocked:
                                 move(unit,tile,actions)
+                                continue
+                        eprint(unit.id," is blocked!")
 
     for city in player.cities.values():
         cityActions(city, actions)
@@ -468,7 +471,7 @@ def findPath(unit, dest, actions, doAnnotate):
 def move(unit, dest, actions):
     if dest is None:
        eprint("WHAT! DEST IS NONE! Unit ID = ",unit.id)
-    if(not dest.blocked):
+    if(not game_state.map.get_cell_by_pos(dest).blocked):
         path = findPath(unit, dest, actions, True)
     if len(path):
         actions.append(unit.move(unit.pos.direction_to(path[0])))
