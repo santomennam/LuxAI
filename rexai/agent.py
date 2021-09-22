@@ -97,7 +97,12 @@ def agent(observation, configuration):
                 if (cityPlanner(unit, actions)):
                     continue
                 else:
-                    move(unit, targetCity(unit, player), actions)
+                    if targetCity(unit, player):
+                        move(unit, targetCity(unit, player), actions)
+                    else:
+                        for tile in getSurroundingTiles(unit.pos,1):
+                            if not tile.resource:
+                                move(unit,tile,actions)
 
     for city in player.cities.values():
         cityActions(city, actions)
@@ -308,8 +313,6 @@ def targetCity(unit, player):
         eprint("No city!!")
         return unit.pos
 
-
-
 def recursivePath(tile, dest, path):
     if tile.blocked or tile.visited:
         return False
@@ -465,6 +468,7 @@ def findPath(unit, dest, actions, doAnnotate):
 def move(unit, dest, actions):
     if dest is None:
        eprint("WHAT! DEST IS NONE! Unit ID = ",unit.id)
-    path = findPath(unit, dest, actions, True)
+    if(not dest.blocked):
+        path = findPath(unit, dest, actions, True)
     if len(path):
         actions.append(unit.move(unit.pos.direction_to(path[0])))
