@@ -47,7 +47,7 @@ def agent(observation, configuration):
     width, height = game_state.map.width, game_state.map.height
 
     eprint(" === TURN ", game_state.turn, " ===")
-
+    workersOnCooldown = 0
     # categorizes tiles
     resource_tiles: list[Cell] = []
     for y in range(height):
@@ -86,32 +86,36 @@ def agent(observation, configuration):
             if unit.can_act():
                 cartLogic(unit,actions)
         unit.cargo.total = unit.cargo.wood + unit.cargo.coal + unit.cargo.uranium
-        if unit.is_worker() and unit.can_act():
-            if unit.get_cargo_space_left() > 0:
-                target = targetResource(unit, resource_tiles, player, actions)
-                if not target.equals(unit.pos):
-                    move(unit, target, actions)
-            else:
-                # if unit is a worker and there is no cargo space left, and we have cities, lets return to them
-                eprint("cargo full")
-                if (cityPlanner(unit, actions)):
-                    continue
+        if unit.is_worker():
+            if unit.can_act():
+                if unit.get_cargo_space_left() > 0:
+                    target = targetResource(unit, resource_tiles, player, actions)
+                    if not target.equals(unit.pos):
+                        move(unit, target, actions)
                 else:
-                    if targetCity(unit, player):
-                        move(unit, targetCity(unit, player), actions)
+                    # if unit is a worker and there is no cargo space left, and we have cities, lets return to them
+                    eprint("cargo full")
+                    if (cityPlanner(unit, actions)):
                         continue
                     else:
-                        for tile in getSurroundingTiles(unit.pos,1):
-                            if not tile.resource and not tile.blocked:
-                                move(unit,tile,actions)
+                        if targetCity(unit, player,1):
+                            if move(unit, targetCity(unit, player,1), actions):
                                 continue
-                        eprint(unit.id," is blocked!")
+                        if targetCity(unit, player,2):
+                            if move(unit, targetCity(unit, player,2), actions):
+                                continue
+                        else:
+                            for tile in getSurroundingTiles(unit.pos,1):
+                                if not tile.resource and not tile.blocked:
+                                    if move(unit,tile,actions):
+                                        continue
+                            eprint(unit.id," is stuck!")
 
+            else:
+                workersOnCooldown += 1
+    eprint(workersOnCooldown, " workers on cooldown")
     for city in player.cities.values():
         cityActions(city, actions)
-
-    # you can add debug annotations using the functions in the annotate object
-    # actions.append(annotate.circle(0, 0))
 
     display.draw_map_overlay(observation, game_state, actions.copy())
 
@@ -138,16 +142,10 @@ def simulateTurns(adjResTiles, unitCargoSpace):
 
 
 def nextToCity(unit):
-    eprint("expression:", list(
-        map(lambda t: t.citytile is not None and t.citytile.team == game_state.players[game_state.id],
-            getSurroundingTiles(unit.pos, 1))))
-    eprint("any:", any(
-        map(lambda t: t.citytile is not None and t.citytile.team == game_state.players[game_state.id],
-            getSurroundingTiles(unit.pos, 1)))
-           )
-    return any(
-        list(map(lambda t: t.citytile is not None and t.citytile.team == game_state.players[game_state.id],
-                 getSurroundingTiles(unit.pos, 1))))
+    objMap =map(lambda t: t.citytile is not None and t.citytile.team == game_state.players[game_state.id],getSurroundingTiles(unit.pos, 1))
+    # eprint("expression:", list(objMap))
+    # eprint("any:", any(objMap))
+    return any(list(objMap))
 
 
 def turnsUntilNight():
@@ -190,18 +188,19 @@ def assignUnits():
 
 
 def cityPlanner(unit, actions):
-    eprint("unit pos:", unit.pos.x, unit.pos.y, "can act: ", unit.can_act(), "nextToCity:", nextToCity(unit),
-           "numResTiles:", numResTiles(getSurroundingTiles(unit.pos, 1)), "cargo space:", unit.get_cargo_space_left())
+    # eprint("unit pos:", unit.pos.x, unit.pos.y, "can act: ", unit.can_act(), "nextToCity:", nextToCity(unit),
+    #        "numResTiles:", numResTiles(getSurroundingTiles(unit.pos, 1)), "cargo space:", unit.get_cargo_space_left())
     if unit.can_act() and (nextToCity(unit) or numResTiles(
             getSurroundingTiles(unit.pos, 1)) >= 1) and unit.get_cargo_space_left() == 0:
         eprint("Trying to build city")
         unitTile = game_state.map.get_cell_by_pos(unit.pos)
-        eprint("can_build:", unit.can_build(game_state.map))
+        # eprint("can_build:", unit.can_build(game_state.map))
         if not unitTile.has_resource() and not unitTile.citytile and turnsUntilNight() > 0 and unit.can_build(
                 game_state.map):
             actions.append(unit.build_city())
             eprint("built city!")
             return True
+    eprint("failed to build city")
     return False
 
 
@@ -289,7 +288,7 @@ def targetResource(unit, resourceTiles, player, actions):
 
     if target == None:
         eprint("no target in range")
-        return targetCity(unit, player)
+        return targetCity(unit, player,1)
     else:
         # actions.append(annotate.sidetext("option: " + str(tile.pos.x) + ", " + str(tile.pos.y)))
         # actions.append(annotate.sidetext("rndTripLength = " + str(rndTripLength)))
@@ -299,19 +298,17 @@ def targetResource(unit, resourceTiles, player, actions):
         return target.pos
 
 
-def targetCity(unit, player):
+def targetCity(unit, player,order):
     if len(player.cities.values()) > 0:
         closest_dist = math.inf
-        closest_city_tile = None
+        closest_city_tiles = []
         for k, city in player.cities.items():
-            for city_tile in city.citytiles:
-                dist = city_tile.pos.distance_to(unit.pos)
-                if dist < closest_dist:
-                    closest_dist = dist
-                    closest_city_tile = city_tile
-        if closest_city_tile != None:
-            eprint("city at ", closest_city_tile.pos.x, ", ", closest_city_tile.pos.y)
-            return closest_city_tile.pos
+            closest_city_tiles.append(city.citytiles)
+        if len(closest_city_tiles):
+            closest_city_tiles.sort(key = lambda y: unit.pos.distance_to(y))
+            order = min(order-1, len(closest_city_tiles))
+            eprint("city at ", closest_city_tiles[order].pos.x, ", ", closest_city_tiles[order].pos.y)
+            return closest_city_tiles[order].pos
     else:
         eprint("No city!!")
         return unit.pos
@@ -361,7 +358,8 @@ def cityActions(city, actions):
 def cartDestFinder(cart):
     bestTile = None
     bestNum = 0
-    for tile in game_state.map.map.values():
+    for array in game_state.map.map:
+     for tile in array:
         if len(getSurroundingUnits(tile.pos)) > bestNum and not tile.blocked:
             bestTile = tile
             bestNum = getSurroundingUnits(tile.pos)
@@ -388,14 +386,14 @@ def cartLogic(cart, actions):
     if inCity(cart.pos):
         cart.goingHome = False
     if cart.goingHome:
-        move(cart, targetCity(cart, game_state.players[game_state.id]), actions)
+        move(cart, targetCity(cart, game_state.players[game_state.id],1), actions)
         return
     if not cart.dest or len(getSurroundingUnits(cart.pos)) == 0:
         cart.dest = cartDestFinder(cart.pos)
         if cart.dest is not None:
             move(cart, cart.dest, actions)
         else:
-            cart.dest = targetCity(cart, game_state.players[game_state.id])
+            cart.dest = targetCity(cart, game_state.players[game_state.id],1)
             cart.goingHome = True
     if cart.pos == cart.dest and (turnsUntilNight() > 3 or cart.cargo < 10):
         for unit in getSurroundingUnits(cart.pos):
@@ -475,3 +473,7 @@ def move(unit, dest, actions):
         path = findPath(unit, dest, actions, True)
     if len(path):
         actions.append(unit.move(unit.pos.direction_to(path[0])))
+        return True
+
+    eprint("navigation failed while ",unit.id, " tried to move to", dest.x,dest.y)
+    return False
