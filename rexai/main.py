@@ -40,6 +40,10 @@ if __name__ == "__main__":
                 if event.key == pygame.K_SPACE:
                     pygame.time.set_timer(pygame.USEREVENT, 0)
                     take_step = True
+                elif event.key == pygame.K_q:
+                    pygame.quit()
+                    sys.exit()
+
                 # elif event.key == pygame.K_a:
                 #     # print("Player moved left!")
                 # elif event.key == pygame.K_s:

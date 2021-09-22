@@ -185,7 +185,7 @@ def cityPlanner(unit, actions):
     eprint("unit pos:", unit.pos.x, unit.pos.y, "can act: ", unit.can_act(), "nextToCity:", nextToCity(unit),
            "numResTiles:", numResTiles(getSurroundingTiles(unit.pos, 1)), "cargo space:", unit.get_cargo_space_left())
     if unit.can_act() and (nextToCity(unit) or numResTiles(
-            getSurroundingTiles(unit.pos, 1)) >= 2) and unit.get_cargo_space_left() == 0:
+            getSurroundingTiles(unit.pos, 1)) >= 1) and unit.get_cargo_space_left() == 0:
         eprint("Trying to build city")
         unitTile = game_state.map.get_cell_by_pos(unit.pos)
         eprint("can_build:", unit.can_build(game_state.map))

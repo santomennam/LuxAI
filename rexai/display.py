@@ -43,18 +43,24 @@ class GameDisplay:
     def all_city_tiles(self, player):
         for k, city in player.cities.items():
             for city_tile in city.citytiles:
-                yield city_tile
+                yield city, city_tile
 
     def cell_rect(self, pos):
         return Rect(pos.x * self.cell_size+self.margin, pos.y * self.cell_size+self.margin, self.cell_size, self.cell_size)
 
-    def draw_resource(self, rect, resource):
-        pygame.draw.rect(self.window, resource_color[resource.type], rect.inflate(-8, -8), 1)
-        text = self.basicFont.render('{}'.format(resource.amount), True, WHITE, resource_color[resource.type])
+    def draw_text(self, rect, back_color, text_color, message):
+        text = self.basicFont.render(message, True, text_color, back_color)
         textRect = text.get_rect()
         textRect.centerx = rect.centerx
         textRect.centery = rect.centery
         self.window.blit(text, textRect)
+
+    def draw_number(self, rect, back_color, text_color, num):
+        self.draw_text(rect, back_color, text_color, '{}'.format(num))
+
+    def draw_resource(self, rect, resource):
+        pygame.draw.rect(self.window, resource_color[resource.type], rect.inflate(-8, -8), 1)
+        self.draw_number(rect, WHITE, resource_color[resource.type], resource.amount)
 
     def get_cell(self, pos) -> Cell:
         return self.game_state.map.get_cell(pos.x, pos.y)
@@ -64,8 +70,10 @@ class GameDisplay:
         if unit.is_worker() and unit.can_act():
             pygame.draw.ellipse(self.window, BLACK, self.cell_rect(unit.pos).inflate(-4, -4), 3)
 
-    def draw_city(self, tile, color):
-        pygame.draw.rect(self.window, color, self.cell_rect(tile.pos), 2)
+    def draw_city(self, city, tile, color):
+        rect = self.cell_rect(tile.pos)
+        pygame.draw.rect(self.window, color, rect, 2)
+        self.draw_number(rect, WHITE, BLACK, city.fuel)
 
     def drawUnderlay(self, observation, game_state):
 
@@ -91,11 +99,11 @@ class GameDisplay:
         player = game_state.players[observation.player]
         opponent = game_state.players[(observation.player + 1) % 2]
 
-        for tile in self.all_city_tiles(player):
-            self.draw_city(tile, GREEN)
+        for city, tile in self.all_city_tiles(player):
+            self.draw_city(city, tile, GREEN)
 
-        for tile in self.all_city_tiles(opponent):
-            self.draw_city(tile, RED);
+        for city, tile in self.all_city_tiles(opponent):
+            self.draw_city(city, tile, RED);
 
         for unit in player.units:
             self.draw_unit(unit, GREEN)
