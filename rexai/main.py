@@ -66,7 +66,7 @@ if __name__ == "__main__":
                 player_id = int(observation["updates"][0])
                 observation.player = player_id
             if inputs == "D_DONE":
-                sys.stderr.write(",".join(observation["updates"]))
+                # sys.stderr.write(",".join(observation["updates"]))
                 actions = agent(observation, None)
                 observation["updates"] = []
                 step += 1

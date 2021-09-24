@@ -23,7 +23,6 @@ def getSurroundingTiles(pos, dist):
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
-registeredCartIDs=[]
 def agent(observation, configuration):
     global game_state
 
@@ -80,8 +79,6 @@ def agent(observation, configuration):
             game_state.map.get_cell_by_pos(unit.pos).blocked = True
     for unit in player.units:
         if unit.is_cart():
-            if unit.id not in registeredCartIDs:
-                registerCart(unit)
             if unit.can_act():
                 cartLogic(unit,actions)
         unit.cargo.total = unit.cargo.wood + unit.cargo.coal + unit.cargo.uranium
@@ -97,11 +94,11 @@ def agent(observation, configuration):
                     if (cityPlanner(unit, actions)):
                         continue
                     else:
-                        if targetCity(unit, player,1):
-                            if move(unit, targetCity(unit, player,1), actions):
+                        if targetCity(unit, player,1,actions):
+                            if move(unit, targetCity(unit, player,1,actions), actions):
                                 continue
-                        if targetCity(unit, player,2):
-                            if move(unit, targetCity(unit, player,2), actions):
+                        if targetCity(unit, player,2,actions):
+                            if move(unit, targetCity(unit, player,2,actions), actions):
                                 continue
                         else:
                             for tile in getSurroundingTiles(unit.pos,1):
@@ -120,10 +117,6 @@ def agent(observation, configuration):
 
     return actions
 
-def registerCart(cart):
-    cart.goingHome = False
-    cart.dest = None
-    registeredCartIDs.append(cart.id)
 
 def simulateTurns(adjResTiles, unitCargoSpace):
     tileCopy = adjResTiles.copy()
@@ -288,7 +281,7 @@ def targetResource(unit, resourceTiles, player, actions):
 
     if target == None:
         eprint("no target in range")
-        return targetCity(unit, player,1)
+        return targetCity(unit, player,1,actions)
     else:
         # actions.append(annotate.sidetext("option: " + str(tile.pos.x) + ", " + str(tile.pos.y)))
         # actions.append(annotate.sidetext("rndTripLength = " + str(rndTripLength)))
@@ -298,7 +291,7 @@ def targetResource(unit, resourceTiles, player, actions):
         return target.pos
 
 
-def targetCity(unit, player,order):
+def targetCity(unit, player,order,actions):
     if len(player.cities.values()) > 0:
         closest_dist = math.inf
         closest_city_tiles = []
@@ -312,6 +305,7 @@ def targetCity(unit, player,order):
             return closest_city_tiles[order].pos
     else:
         eprint("No city!!")
+        cityPlanner(unit,actions)
         return unit.pos
 
 def recursivePath(tile, dest, path):
@@ -381,28 +375,27 @@ def inCity(pos):
                 return True
     return False
 
-goingHomeSet= set()
+goingHomeSet = set()
+cartDestDict = {}
 def cartLogic(cart, actions):
     global goingHomeSet
-    if cart.id not in registeredCartIDs:
-        registerCart(cart)
+    global cartDestDict
     if (cart.get_cargo_space_left() == 0):
        goingHomeSet.add(cart.id)
-    if inCity(cart.pos):
-        cart.goingHome = False
+       cartDestDict.pop[cart.id]
+    if inCity(cart.pos) and cart.id in goingHomeSet:
+        goingHomeSet.remove(cart.id)
     if cart.id in goingHomeSet:
-        if move(cart, targetCity(cart, game_state.players[game_state.id],1), actions):
+        if move(cart, targetCity(cart, game_state.players[game_state.id],1,actions), actions):
             return
+    if not cart.id not in cartDestDict.keys() or len(getSurroundingUnits(cart.pos)) == 0:
+        cartDestDict[cart.id] = cartDestFinder(cart.pos)
+        if cart.id in cartDestDict.keys():
+            move(cart, cartDestDict[cart.id], actions)
         else:
-            goingHomeSet.remove(cart.id)
-    if not cart.dest or len(getSurroundingUnits(cart.pos)) == 0:
-        cart.dest = cartDestFinder(cart.pos)
-        if cart.dest is not None:
-            move(cart, cart.dest, actions)
-        else:
-            cart.dest = targetCity(cart, game_state.players[game_state.id],1)
-            cart.goingHome = True
-    if cart.pos == cart.dest and (turnsUntilNight() > 3 or cart.cargo < 10):
+            cartDestDict[cart.id] = targetCity(cart, game_state.players[game_state.id],1,actions)
+            goingHomeSet.add(cart.id)
+    if cart.id in cartDestDict.keys() and cart.pos == cartDestDict[cart.id] and (turnsUntilNight() > 3 or cart.cargo < 10):
         for unit in getSurroundingUnits(cart.pos):
             if unit.is_worker() and unit.can_act():
                 resourceAmounts = {}
@@ -413,8 +406,8 @@ def cartLogic(cart, actions):
                 if max(resourceAmounts.values()) > 20:  # dont bother transferring if don't have enough
                     actions.append(unit.transfer(cart.id, max_res, max(resourceAmounts.values()) - 5))
         return
-    if cart.pos != cart.dest:
-        move(cart, cart.dest, actions)
+    if cart.id in cartDestDict.keys() and cart.pos != cartDestDict[cart.id]:
+        move(cart, cartDestDict[cart.id], actions)
 
 
 def tileFromPos(pos):
