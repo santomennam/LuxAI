@@ -82,7 +82,6 @@ def agent(observation, configuration):
         if unit.is_cart():
             if unit.id not in registeredCartIDs:
                 registerCart(unit)
-                registeredCartIDs.append(unit.id)
             if unit.can_act():
                 cartLogic(unit,actions)
         unit.cargo.total = unit.cargo.wood + unit.cargo.coal + unit.cargo.uranium
@@ -124,6 +123,7 @@ def agent(observation, configuration):
 def registerCart(cart):
     cart.goingHome = False
     cart.dest = None
+    registeredCartIDs.append(cart.id)
 
 def simulateTurns(adjResTiles, unitCargoSpace):
     tileCopy = adjResTiles.copy()
@@ -303,10 +303,11 @@ def targetCity(unit, player,order):
         closest_dist = math.inf
         closest_city_tiles = []
         for k, city in player.cities.items():
-            closest_city_tiles.append(city.citytiles)
+            for tile in city.citytiles:
+             closest_city_tiles.append(tile)
         if len(closest_city_tiles):
-            closest_city_tiles.sort(key = lambda y: unit.pos.distance_to(y))
-            order = min(order-1, len(closest_city_tiles))
+            closest_city_tiles.sort(key = lambda y: unit.pos.distance_to(y.pos))
+            order = max(min(order-1, len(closest_city_tiles)-1),0)
             eprint("city at ", closest_city_tiles[order].pos.x, ", ", closest_city_tiles[order].pos.y)
             return closest_city_tiles[order].pos
     else:
@@ -362,7 +363,7 @@ def cartDestFinder(cart):
      for tile in array:
         if len(getSurroundingUnits(tile.pos)) > bestNum and not tile.blocked:
             bestTile = tile
-            bestNum = getSurroundingUnits(tile.pos)
+            bestNum = len(getSurroundingUnits(tile.pos))
     return bestTile.pos
 
 def getSurroundingUnits(pos):
@@ -380,14 +381,20 @@ def inCity(pos):
                 return True
     return False
 
+goingHomeSet= set()
 def cartLogic(cart, actions):
+    global goingHomeSet
+    if cart.id not in registeredCartIDs:
+        registerCart(cart)
     if (cart.get_cargo_space_left() == 0):
-        cart.goingHome = True
+       goingHomeSet.add(cart.id)
     if inCity(cart.pos):
         cart.goingHome = False
-    if cart.goingHome:
-        move(cart, targetCity(cart, game_state.players[game_state.id],1), actions)
-        return
+    if cart.id in goingHomeSet:
+        if move(cart, targetCity(cart, game_state.players[game_state.id],1), actions):
+            return
+        else:
+            goingHomeSet.remove(cart.id)
     if not cart.dest or len(getSurroundingUnits(cart.pos)) == 0:
         cart.dest = cartDestFinder(cart.pos)
         if cart.dest is not None:
@@ -471,9 +478,9 @@ def move(unit, dest, actions):
        eprint("WHAT! DEST IS NONE! Unit ID = ",unit.id)
     if(not game_state.map.get_cell_by_pos(dest).blocked):
         path = findPath(unit, dest, actions, True)
-    if len(path):
-        actions.append(unit.move(unit.pos.direction_to(path[0])))
-        return True
+        if len(path):
+            actions.append(unit.move(unit.pos.direction_to(path[0])))
+            return True
 
-    eprint("navigation failed while ",unit.id, " tried to move to", dest.x,dest.y)
+    eprint("navigation failed while ",unit.id, " tried to move to", dest.x,dest.y,". unit was at ",unit.pos.x,unit.pos.y)
     return False
