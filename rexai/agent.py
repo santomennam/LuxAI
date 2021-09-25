@@ -97,14 +97,17 @@ def agent(observation, configuration):
                         if targetCity(unit, player,1,actions):
                             if move(unit, targetCity(unit, player,1,actions), actions):
                                 continue
-                        if targetCity(unit, player,2,actions):
+                        elif targetCity(unit, player,2,actions):
                             if move(unit, targetCity(unit, player,2,actions), actions):
                                 continue
                         else:
+                            eprint("can't find a city. attempting to build one")
                             for tile in getSurroundingTiles(unit.pos,1):
-                                if not tile.resource and not tile.blocked:
+                                if not tile.resource and not tile.blocked and tile.pos is not unit.pos:
                                     if move(unit,tile,actions):
+                                        eprint("moving to ",tile.x,tile.y,"to attempt to find a place to build")
                                         continue
+
                             eprint(unit.id," is stuck!")
 
             else:
@@ -304,8 +307,7 @@ def targetCity(unit, player,order,actions):
             eprint("city at ", closest_city_tiles[order].pos.x, ", ", closest_city_tiles[order].pos.y)
             return closest_city_tiles[order].pos
     else:
-        eprint("No city!!")
-        cityPlanner(unit,actions)
+        eprint("No city!! looking for element #",order-1)
         return unit.pos
 
 def recursivePath(tile, dest, path):
@@ -469,11 +471,13 @@ def findPath(unit, dest, actions, doAnnotate):
 def move(unit, dest, actions):
     if dest is None:
        eprint("WHAT! DEST IS NONE! Unit ID = ",unit.id)
-    if(not game_state.map.get_cell_by_pos(dest).blocked):
+    if game_state.map.get_cell_by_pos(dest).blocked:
+        eprint("we seem to think that",dest.x,dest.y, "is blocked")
+    else:
         path = findPath(unit, dest, actions, True)
-        if len(path):
+        if len(path) > 0:
+            eprint("path has length when",unit.id, "tried to move to ",dest.x,dest.y)
             actions.append(unit.move(unit.pos.direction_to(path[0])))
             return True
-
     eprint("navigation failed while ",unit.id, " tried to move to", dest.x,dest.y,". unit was at ",unit.pos.x,unit.pos.y)
     return False
