@@ -399,6 +399,8 @@ def cartLogic(cart, actions):
     if cart.id in cartDestDict.keys() and cart.pos != cartDestDict[cart.id]:
         move(cart, cartDestDict[cart.id], actions)
 
+# TODO: Go save a dying city?
+
 def workerLogic(player, unit, actions, resource_tiles):
     # unit.cargo.total = unit.cargo.wood + unit.cargo.coal + unit.cargo.uranium
     if unit.get_cargo_space_left() > 0:
