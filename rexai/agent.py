@@ -1,16 +1,20 @@
 import math, sys
 from lux import game
 from lux.game import Game
-from lux.game_map import Cell, RESOURCE_TYPES
+from lux.game_map import Cell, Position, RESOURCE_TYPES
 from lux.constants import Constants
 from lux.game_constants import GAME_CONSTANTS
 from lux import annotate
+from lux.game_objects import Player, Unit, City, CityTile
+
 import display
+
+# menu item: Code/inspect code
 
 DIRECTIONS = Constants.DIRECTIONS
 DIR_LIST = [DIRECTIONS.NORTH, DIRECTIONS.EAST, DIRECTIONS.SOUTH, DIRECTIONS.WEST]
 
-
+# return a list of the four Tile objects around pos
 def getSurroundingTiles(pos, dist):
     surroundingTiles = []
     for direct in DIR_LIST:
@@ -19,6 +23,18 @@ def getSurroundingTiles(pos, dist):
             surroundingTiles.append(game_state.map.get_cell_by_pos(pos.translate(direct, dist)))
     return surroundingTiles
 
+def allCells():
+    width, height = game_state.map.width, game_state.map.height
+    for y in range(height):
+        for x in range(width):
+            yield game_state.map.get_cell(x, y)
+
+def getCell(unitOrPos):
+    if isinstance(unitOrPos, Unit):
+        return game_state.map.get_cell_by_pos(unitOrPos.pos)
+    if isinstance(unitOrPos, Position):
+        return game_state.map.get_cell_by_pos(unitOrPos)
+    raise TypeError("getCell expects a Unit or Position")
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
@@ -48,71 +64,21 @@ def agent(observation, configuration):
     eprint(" === TURN ", game_state.turn, " ===")
     workersOnCooldown = 0
     # categorizes tiles
-    resource_tiles: list[Cell] = []
-    for y in range(height):
-        for x in range(width):
-            cell = game_state.map.get_cell(x, y)
-            if cell.has_resource():
-                resource_tiles.append(cell)
-                if cell.resource.type == "wood":
-                    cell.resource.mineRate = 20
-                    # fuel per unit of resource
-                    cell.resource.fuelVal = 1
-                elif cell.resource.type == "coal":
-                    cell.resource.mineRate = 5
-                    cell.resource.fuelVal = 10
-                elif cell.resource.type == "uranium":
-                    cell.resource.mineRate = 2
-                    cell.resource.fuelVal = 40
-            if cell.citytile and cell.citytile.team != game_state.id:
-                cell.blocked = True
-            else:
-                cell.blocked = False
-            cell.adjRes = []
-            cell.visited = False
+
+    resource_tiles = initCells()
+
     for unit in opponent.units:
-        game_state.map.get_cell_by_pos(unit.pos).blocked = True
+        getCell(unit).blocked = True
 
     # we iterate over all our units and do something with them
     for unit in player.units:
-        if not game_state.map.get_cell_by_pos(unit.pos).citytile:
-            game_state.map.get_cell_by_pos(unit.pos).blocked = True
+        getCell(unit).blocked = not getCell(unit).citytile
+
     for unit in player.units:
-        if unit.is_cart():
-            if unit.can_act():
-                cartLogic(unit,actions)
-        unit.cargo.total = unit.cargo.wood + unit.cargo.coal + unit.cargo.uranium
-        if unit.is_worker():
-            if unit.can_act():
-                if unit.get_cargo_space_left() > 0:
-                    target = targetResource(unit, resource_tiles, player, actions)
-                    if not target.equals(unit.pos):
-                        move(unit, target, actions)
-                else:
-                    # if unit is a worker and there is no cargo space left, and we have cities, lets return to them
-                    eprint("cargo full")
-                    if (cityPlanner(unit, actions)):
-                        continue
-                    else:
-                        if targetCity(unit, player,1,actions):
-                            if move(unit, targetCity(unit, player,1,actions), actions):
-                                continue
-                        elif targetCity(unit, player,2,actions):
-                            if move(unit, targetCity(unit, player,2,actions), actions):
-                                continue
-                        else:
-                            eprint("can't find a city. attempting to build one")
-                            for tile in getSurroundingTiles(unit.pos,1):
-                                if not tile.resource and not tile.blocked and tile.pos is not unit.pos:
-                                    if move(unit,tile,actions):
-                                        eprint("moving to ",tile.x,tile.y,"to attempt to find a place to build")
-                                        continue
+        unitActions(player, unit, actions, resource_tiles)
 
-                            eprint(unit.id," is stuck!")
-
-            else:
-                workersOnCooldown += 1
     eprint(workersOnCooldown, " workers on cooldown")
+
     for city in player.cities.values():
         cityActions(city, actions)
 
@@ -120,6 +86,26 @@ def agent(observation, configuration):
 
     return actions
 
+
+def initCells():
+    resource_tiles: list[Cell] = []
+    for cell in allCells():
+        if cell.has_resource():
+            resource_tiles.append(cell)
+            if cell.resource.type == "wood":
+                cell.resource.mineRate = 20
+                # fuel per unit of resource
+                cell.resource.fuelVal = 1
+            elif cell.resource.type == "coal":
+                cell.resource.mineRate = 5
+                cell.resource.fuelVal = 10
+            elif cell.resource.type == "uranium":
+                cell.resource.mineRate = 2
+                cell.resource.fuelVal = 40
+        cell.blocked = cell.citytile and cell.citytile.team != game_state.id
+        cell.adjRes = []
+        cell.visited = False
+    return resource_tiles
 
 def simulateTurns(adjResTiles, unitCargoSpace):
     tileCopy = adjResTiles.copy()
@@ -182,20 +168,15 @@ def assignUnits():
             if mostUnassigned():
                 unit.assignedCity = mostUnassigned()
 
-
+# decide whether to build a new city tile (and if so, do so)
 def cityPlanner(unit, actions):
-    # eprint("unit pos:", unit.pos.x, unit.pos.y, "can act: ", unit.can_act(), "nextToCity:", nextToCity(unit),
-    #        "numResTiles:", numResTiles(getSurroundingTiles(unit.pos, 1)), "cargo space:", unit.get_cargo_space_left())
-    if unit.can_act() and (nextToCity(unit) or numResTiles(
-            getSurroundingTiles(unit.pos, 1)) >= 1) and unit.get_cargo_space_left() == 0:
-        eprint("Trying to build city")
-        unitTile = game_state.map.get_cell_by_pos(unit.pos)
-        # eprint("can_build:", unit.can_build(game_state.map))
-        if not unitTile.has_resource() and not unitTile.citytile and turnsUntilNight() > 0 and unit.can_build(
-                game_state.map):
-            actions.append(unit.build_city())
-            eprint("built city!")
-            return True
+    # is it possible to build a city here?
+    possible = unit.can_build(game_state.map) and not getCell(unit).citytile
+    desired = (nextToCity(unit) or numResTiles(getSurroundingTiles(unit.pos, 1)) >= 1) and turnsUntilNight() > 0
+    if possible and desired:
+        actions.append(unit.build_city())
+        eprint("built city!")
+        return True
     eprint("failed to build city")
     return False
 
@@ -209,7 +190,7 @@ def targetResource(unit, resourceTiles, player, actions):
                 if (tile.pos.translate(dir, 1).x in range(0, game_state.map_width) and
                         tile.pos.translate(dir, 1).y in range(0, game_state.map_height)):
                     # makes a list of all tiles next to resources
-                    adjTile = tileFromPos(tile.pos.translate(dir, 1))
+                    adjTile = getCell(tile.pos.translate(dir, 1))
                     if (adjTile.has_resource() and (adjTile.resource.type == "wood" or
                                                     (adjTile.resource.type == "coal" and player.researched_coal()) or
                                                     (
@@ -338,6 +319,13 @@ def numCarts():
             num += 1
     return num
 
+def unitActions(player, unit, actions, resource_tiles):
+    if not unit.can_act():
+        return False
+    if unit.is_cart():
+        return cartLogic(unit, actions)
+    return workerLogic(player, unit, actions, resource_tiles)
+
 def cityActions(city, actions):
     for citytile in city.citytiles:
         if citytile.cooldown < 1:
@@ -411,10 +399,34 @@ def cartLogic(cart, actions):
     if cart.id in cartDestDict.keys() and cart.pos != cartDestDict[cart.id]:
         move(cart, cartDestDict[cart.id], actions)
 
-
-def tileFromPos(pos):
-    return game_state.map.get_cell_by_pos(pos)
-
+def workerLogic(player, unit, actions, resource_tiles):
+    # unit.cargo.total = unit.cargo.wood + unit.cargo.coal + unit.cargo.uranium
+    if unit.get_cargo_space_left() > 0:
+        target = targetResource(unit, resource_tiles, player, actions)
+        if not target.equals(unit.pos):
+            return move(unit, target, actions)
+        return True # already on a resource
+    else:
+        # if unit is a worker and there is no cargo space left, and we have cities, lets return to them
+        eprint("cargo full")
+        if cityPlanner(unit, actions):
+            return True
+        else:
+            if targetCity(unit, player, 1, actions):
+                if move(unit, targetCity(unit, player, 1, actions), actions):
+                    return True
+            elif targetCity(unit, player, 2, actions):
+                if move(unit, targetCity(unit, player, 2, actions), actions):
+                    return True
+            else:
+                eprint("can't find a city. attempting to build one")
+                for tile in getSurroundingTiles(unit.pos, 1):
+                    if not tile.resource and not tile.blocked and tile.pos is not unit.pos:
+                        if move(unit, tile, actions):
+                            eprint("moving to ", tile.x, tile.y, "to attempt to find a place to build")
+                            return True
+    eprint(unit.id, " is stuck!")
+    return False
 
 def cityTileFuelUse(tile):
     surrounding = getSurroundingTiles(tile.pos, 1)
@@ -460,7 +472,7 @@ def findPath(unit, dest, actions, doAnnotate):
     eprint("Destination: ", dest)
 
     path = []
-    recursivePath(tileFromPos(unit.pos), dest, path)
+    recursivePath(getCell(unit), dest, path)
     if doAnnotate:
         actions.append(annotate.circle(dest.x, dest.y))
         for tiles in path:
