@@ -9,7 +9,8 @@ import display
 
 DIRECTIONS = Constants.DIRECTIONS
 DIR_LIST = [DIRECTIONS.NORTH, DIRECTIONS.EAST, DIRECTIONS.SOUTH, DIRECTIONS.WEST]
-
+cities = game_state.players[game_state.id].cities
+actionScores = {"return":0,"build":0,"stay":0,"moveToResource":0}
 
 def getSurroundingTiles(pos, dist):
     surroundingTiles = []
@@ -19,9 +20,26 @@ def getSurroundingTiles(pos, dist):
             surroundingTiles.append(game_state.map.get_cell_by_pos(pos.translate(direct, dist)))
     return surroundingTiles
 
+def numCitiesInNeed():
+    global cities
+    needy = 0;
+    for city in cities:
+        if city.fuel < decisionParameters["fuelThreshold"]:
+            needy += 1
+    return needy
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
+
+def updateParameters():
+    global decisionParameters
+    decisionParameters = {"time": turnsUntilNight(), "cities": len(game_state.players[game_state.id].cities),
+                          "workers": numWorkers(), "carts": numCarts(), "cityResTileReq": 1,
+                          "citiesInNeed": numCitiesInNeed(), "numResearch": game_state.players[game_id].research_points}
+def calculateWorkerScores():
+    c = decisionParameters["cities"]
+    cN = decisionParameters["citiesInNeed"]
+    w = decisionParameters["workers"]
 
 def agent(observation, configuration):
     global game_state
@@ -46,6 +64,7 @@ def agent(observation, configuration):
     width, height = game_state.map.width, game_state.map.height
 
     eprint(" === TURN ", game_state.turn, " ===")
+    updateParameters()
     workersOnCooldown = 0
     # categorizes tiles
     resource_tiles: list[Cell] = []
