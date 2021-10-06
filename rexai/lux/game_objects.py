@@ -90,7 +90,7 @@ class Unit:
     def is_cart(self) -> bool:
         return self.type == UNIT_TYPES.CART
 
-    def get_cargo_space_left(self):
+    def get_cargo_space_left(self) -> int:
         """
         get cargo space left in this unit
         """
@@ -99,7 +99,7 @@ class Unit:
             return GAME_CONSTANTS["PARAMETERS"]["RESOURCE_CAPACITY"]["WORKER"] - spaceused
         else:
             return GAME_CONSTANTS["PARAMETERS"]["RESOURCE_CAPACITY"]["CART"] - spaceused
-    
+
     def can_build(self, game_map) -> bool:
         """
         whether or not the unit can build where it is right now

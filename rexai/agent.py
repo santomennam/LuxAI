@@ -1,3 +1,5 @@
+from typing import Any
+
 import math, sys
 from lux import game
 from lux.game import Game
@@ -14,7 +16,39 @@ import display
 DIRECTIONS = Constants.DIRECTIONS
 DIR_LIST = [DIRECTIONS.NORTH, DIRECTIONS.EAST, DIRECTIONS.SOUTH, DIRECTIONS.WEST]
 cities = game_state.players[game_state.id].cities
-actionScores = {"return":0,"build":0,"stay":0,"moveToResource":0}
+
+
+class Score:
+    global getSurroundingTiles
+    decisionParameters: dict = {}
+    c = decisionParameters["cities"]
+    cN = decisionParameters["citiesInNeed"]
+    w = decisionParameters["workers"]
+    t = decisionParamters["time"]
+    r = numResTiles(getSurroundingTiles(unit.pos,1))
+    rCargo = unit.get_cargo_space_left()
+
+    def __init__(self):
+        decisionParameters = {"time": turnsUntilNight(), "cities": len(game_state.players[game_state.id].cities),
+                              "workers": numWorkers(), "carts": numCarts(), "cityResTileReq": 1,
+                              "citiesInNeed": numCitiesInNeed(),
+                              "numResearch": game_state.players[game_id].research_points}
+
+    def calculateWorkerScores(self,unit,dest):
+        return {"return": self.calculateWorkerReturnScore(unit), "build": self.calculateWorkerBuildScore(unit), "stay": self.calculateWorkerStayScore(unit), "moveToResource": self.calculateWorkerMoveToResScore(unit,dest)}
+    def calculateWorkerReturnScore(self, unit):
+        return (1 - (0.1 * self.c) + (0.5 * self.r) + (0.1 * self.w) + (0.5 * self.t))(self.cN <= 0)
+    def calculateWorkerBuildScore(self, unit):
+        return (1 - (0.1 * self.c) + (0.5 * self.r) + (0.1 * self.w) + (0.5 * self.t))(self.cN <= 0)
+    def calculateWorkerStayScore(self, unit):
+        return 0.1 * self.c * (self.r * 0.1 + 0.1 * self.t + 0.5 * self.rCargo - 0.1 * self.c - 0.5 * self.cN)
+    def calculateWorkerMoveToResScore(self,unit,dest):
+        return 0.1*self.t + 5 * unit.cargo*(0.5 * numResTiles(getSurroundingTiles(dest,1))+ 0.2 * self.rCargo*(cN <= 0 or unit.cargo == 0))
+    def updateParameters(self):
+        self.decisionParameters = {"time": turnsUntilNight(), "cities": len(game_state.players[game_state.id].cities),
+                              "workers": numWorkers(), "carts": numCarts(), "cityResTileReq": 1,
+                              "citiesInNeed": numCitiesInNeed(),
+                              "numResearch": game_state.players[game_id].research_points}
 
 
 # return a list of the four Tile objects around pos
@@ -28,7 +62,7 @@ def getSurroundingTiles(pos, dist):
 
 def numCitiesInNeed():
     global cities
-    needy = 0;
+    needy = 0
     for city in cities:
         if city.fuel < decisionParameters["fuelThreshold"]:
             needy += 1
@@ -49,15 +83,7 @@ def getCell(unitOrPos):
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
-def updateParameters():
-    global decisionParameters
-    decisionParameters = {"time": turnsUntilNight(), "cities": len(game_state.players[game_state.id].cities),
-                          "workers": numWorkers(), "carts": numCarts(), "cityResTileReq": 1,
-                          "citiesInNeed": numCitiesInNeed(), "numResearch": game_state.players[game_id].research_points}
-def calculateWorkerScores():
-    c = decisionParameters["cities"]
-    cN = decisionParameters["citiesInNeed"]
-    w = decisionParameters["workers"]
+
 
 def agent(observation, configuration):
     global game_state
