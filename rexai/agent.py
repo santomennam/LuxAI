@@ -15,31 +15,29 @@ import display
 
 DIRECTIONS = Constants.DIRECTIONS
 DIR_LIST = [DIRECTIONS.NORTH, DIRECTIONS.EAST, DIRECTIONS.SOUTH, DIRECTIONS.WEST]
-cities = game_state.players[game_state.id].cities
-
+fuelThreshold = 200 #the amount of fuel a city must have to be considered not in danger
+# return a list of the four Tile objects around pos
+def getSurroundingTiles(pos, dist):
+    surroundingTiles = []
+    for direct in DIR_LIST:
+        if pos.translate(direct, dist).x < game_state.map.width and pos.translate(direct,
+                                                                                  dist).y < game_state.map.height:
+            surroundingTiles.append(game_state.map.get_cell_by_pos(pos.translate(direct, dist)))
+    return surroundingTiles
 
 class Score:
-    global getSurroundingTiles
-    decisionParameters: dict = {}
-    c = decisionParameters["cities"]
-    cN = decisionParameters["citiesInNeed"]
-    w = decisionParameters["workers"]
-    t = decisionParamters["time"]
-    r = numResTiles(getSurroundingTiles(unit.pos, 1))
-    rCargo = unit.get_cargo_space_left()
-
-    def __init__(self):
-        decisionParameters = {"time": turnsUntilNight(), "cities": len(game_state.players[game_state.id].cities),
-                              "workers": numWorkers(), "carts": numCarts(), "cityResTileReq": 1,
-                              "citiesInNeed": numCitiesInNeed(),
-                              "numResearch": game_state.players[game_id].research_points}
-
-        def updateParameters(self):
-            self.decisionParameters = {"time": turnsUntilNight(),
-                                       "cities": len(game_state.players[game_state.id].cities),
-                                       "workers": numWorkers(), "carts": numCarts(), "cityResTileReq": 1,
-                                       "citiesInNeed": numCitiesInNeed(),
-                                       "numResearch": game_state.players[game_id].research_points}
+    def __init__(self,unit):
+        eprint("initializing")
+        self.decisionParameters: dict = {"time": turnsUntilNight(), "cities": len(game_state.players[game_state.id].cities.values()),
+                                  "workers": numWorkers(), "carts": numCarts(), "cityResTileReq": 1,
+                                  "citiesInNeed": numCitiesInNeed(),
+                                  "numResearch": game_state.players[game_state.id].research_points}
+        self.c = self.decisionParameters["cities"]
+        self.cN = self.decisionParameters["citiesInNeed"]
+        self.w = self.decisionParameters["workers"]
+        self.t = self.decisionParameters["time"]
+        self.r = numResTiles(getSurroundingTiles(unit.pos, 1))
+        self.rCargo = unit.get_cargo_space_left()
 
     # worker calculation master
     def calculateWorkerScores(self, unit, dest):
@@ -49,22 +47,22 @@ class Score:
 
     # compute individual worker scores
     def calculateWorkerReturnScore(self, unit):
-        return (1 - (0.1 * self.c) + (0.5 * self.r) + (0.1 * self.w) + (0.5 * self.t))(self.cN <= 0)
+        return (1 - (0.1 * self.c) + (0.5 * self.r) + (0.1 * self.w) + (0.5 * self.t))*(self.cN <= 0)
 
     def calculateWorkerBuildScore(self, unit):
-        return (1 - (0.1 * self.c) + (0.5 * self.r) + (0.1 * self.w) + (0.5 * self.t))(self.cN <= 0)
+        return (1 - (0.1 * self.c) + (0.5 * self.r) + (0.1 * self.w) + (0.5 * self.t))*(self.cN <= 0)
 
     def calculateWorkerStayScore(self, unit):
-        if rCargo is not 0:
+        if self.rCargo != 0:
             return 0.1 * self.c * (self.r * 0.1 + 0.1 * self.t + 0.5 * self.rCargo - 0.1 * self.c - 0.5 * self.cN)
         else:
             return 0
 
     def calculateWorkerMoveToResScore(self, unit, dest):
 
-        if rCargo is not 0:
+        if self.rCargo != 0:
             return 0.1 * self.t + (0.5 * numResTiles(getSurroundingTiles(dest, 1)) + 0.2 * self.rCargo * (
-                        cN <= 0 or unit.cargo == 0))
+                        self.cN <= 0 or unit.cargo == 0))
         else:
             return 0
 
@@ -75,7 +73,7 @@ class Score:
                 "moveToWorkers": self.calculateCartMoveScore(unit, dest)}
     # compute individual cart scores
     def calculateCartReturnScore(self, unit):
-        if rCargo is not 0:
+        if self.rCargo != 0:
             wInSurround = len(getSurroundingUnits(unit.pos))
             return (0.5 * (self.c + 1) - wInSurround * 0.1) * (
                         + 0.1 * self.t + 0.5 * self.rCargo - 0.1 * self.c - 0.5 * self.cN)
@@ -84,29 +82,19 @@ class Score:
 
     def calculateCartMoveScore(self, unit, dest):
         wInSurround = len(getSurroundingUnits(dest.pos))
-        score = (0.5(wInSurround) * ((self.cN) + 0.05(self.cR) + 0.1 * self.t))
+        score = (0.5 * (wInSurround) * (self.cN + 0.05 * (self.cR) + 0.1 * self.t))
         return score
 
     def calculateCartStayScore(self,unit):
         wInSurround = len(getSurroundingUnits(unit.pos))
         return 0.1 * self.c * (wInSurround * 0.1 + 0.1 * self.t + 0.5 * self.rCargo - 0.1 * self.c - 0.5 * self.cN)
 
-
-# return a list of the four Tile objects around pos
-def getSurroundingTiles(pos, dist):
-    surroundingTiles = []
-    for direct in DIR_LIST:
-        if pos.translate(direct, dist).x < game_state.map.width and pos.translate(direct,
-                                                                                  dist).y < game_state.map.height:
-            surroundingTiles.append(game_state.map.get_cell_by_pos(pos.translate(direct, dist)))
-    return surroundingTiles
-
-
 def numCitiesInNeed():
-    global cities
+    global fuelThreshold
+    cities = game_state.players[game_state.id].cities.values()
     needy = 0
     for city in cities:
-        if city.fuel < decisionParameters["fuelThreshold"]:
+        if city.fuel < fuelThreshold:
             needy += 1
     return needy
 
@@ -152,7 +140,7 @@ def agent(observation, configuration):
     width, height = game_state.map.width, game_state.map.height
 
     eprint(" === TURN ", game_state.turn, " ===")
-    updateParameters()
+    # updateParameters()
     workersOnCooldown = 0
     # categorizes tiles
 
@@ -225,7 +213,6 @@ def nextToCity(unit):
 
 def turnsUntilNight():
     return max(30 - game_state.turn % 40, 0)
-
 
 def nightRemaining():
     return min(39 - (game_state.turn % 40), 10)
@@ -349,7 +336,7 @@ def targetResource(unit, resourceTiles, player, actions):
         fuelGain = (woodGain * turnsAtDest) + (coalGain * turnsAtDest) * 10 + (uraniumGain * turnsAtDest) * 40
         fuelLost = woodUsed + coalUsed * 10 + uraniumUsed
         # calculates potential fuel (after city conversion) per turn
-        fuelPerTurn = (fuelGain - fuelLost) / rndTripLength
+        fuelPerTurn = (fuelGain - fuelLost) / (max(rndTripLength,1))
 
         # the tile that nets the highest fuel per turn becomes the target
         if (target == None or (fuelPerTurn > target.fuelPerTurn)):
@@ -509,52 +496,36 @@ def cartLogic(cart, actions):
 
 # TODO: Go save a dying city?
 
+def workerReturn(unit,targetDest,actions):
+    if targetCity(unit, player, 1, actions):
+        if move(unit, targetCity(unit, player, 1, actions), actions):
+            return True
+    elif targetCity(unit, player, 2, actions):
+        if move(unit, targetCity(unit, player, 2, actions), actions):
+            return True
+    return False
+def workerStay(unit,targetDest,actions):
+    return True
+def moveToTarget(unit,targetDest,actions):
+    return move(unit,targetDest,actions)
+def workerBuild(unit,targetDest,actions):
+    return cityPlanner(unit, actions)
+
 def workerLogic(player, unit, actions, resource_tiles):
     # unit.cargo.total = unit.cargo.wood + unit.cargo.coal + unit.cargo.uranium
-    #TODO: implement functions!!!
-    functToOptions: {"ret": workerReturn,"stay":workerStay,"moveToResource": moveToTarget}
-    #need to implement the above functions!!!!!
-
-
-    score = Score()
+    functToOptions = {"ret": workerReturn,"stay":workerStay,"moveToResource": moveToTarget,"build":workerBuild}
+    score = Score(unit)
     targetDest = targetResource(unit, resource_tiles, player, actions)
     options = score.calculateWorkerScores(unit,targetDest)
-    choice = options[max(options.values())]
+    choice = options[max(options.keys())]
 
     for i in options.keys():
-        if functToOptions[choice](unit,targetDest):
+        if functToOptions[choice](unit,targetDest,actions):
             return True
         else:
-            del options[max(options.values())]
-            choice = options[max(options.values())]
-
-    # if unit.get_cargo_space_left() > 0:
-    #
-    #     if not target.equals(unit.pos):
-    #         return move(unit, target, actions)
-    #     return True  # already on a resource
-    # else:
-    #     # if unit is a worker and there is no cargo space left, and we have cities, lets return to them
-    #     eprint("cargo full")
-    #     if cityPlanner(unit, actions):
-    #         return True
-    #     else:
-    #         if targetCity(unit, player, 1, actions):
-    #             if move(unit, targetCity(unit, player, 1, actions), actions):
-    #                 return True
-    #         elif targetCity(unit, player, 2, actions):
-    #             if move(unit, targetCity(unit, player, 2, actions), actions):
-    #                 return True
-    #         else:
-    #             eprint("can't find a city. attempting to build one")
-    #             for tile in getSurroundingTiles(unit.pos, 1):
-    #                 if not tile.resource and not tile.blocked and tile.pos is not unit.pos:
-    #                     if move(unit, tile, actions):
-    #                         eprint("moving to ", tile.x, tile.y, "to attempt to find a place to build")
-    #                         return True
-    # eprint(unit.id, " is stuck!")
+            # options[max(options.keys())] = 0
+            choice = options[max(options.keys())]
     return False
-
 
 def cityTileFuelUse(tile):
     surrounding = getSurroundingTiles(tile.pos, 1)
