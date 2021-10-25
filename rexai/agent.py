@@ -1,6 +1,8 @@
 from typing import Any
-
+import json
+import base64
 import math, sys
+import numpy as np
 from lux import game
 from lux.game import Game
 from lux.game_map import Cell, Position, RESOURCE_TYPES
@@ -25,6 +27,23 @@ def getSurroundingTiles(pos, dist):
             surroundingTiles.append(game_state.map.get_cell_by_pos(pos.translate(direct, dist)))
     return surroundingTiles
 
+# #And for decoding this does the work (encStr is the encoded JSON string, loaded from somewhere):
+#
+# # get the encoded json dump
+# enc = json.loads(encStr)
+#
+# # build the numpy data type
+# dataType = numpy.dtype(enc[0])
+#
+# # decode the base64 encoded numpy array data and create a new numpy array with this data & type
+# dataArray = numpy.frombuffer(base64.decodestring(enc[1]), dataType)
+#
+# # if the array had more than one data set it has to be reshaped
+# if len(enc) > 2:
+#      dataArray.reshape(enc[2])   # return the reshaped numpy array containing several data sets
+# json.dumps([str(nparray.dtype), base64.b64encode(nparray), nparray.shape])
+
+
 class Score:
     def __init__(self,unit):
         eprint("initializing")
@@ -41,28 +60,40 @@ class Score:
 
     # worker calculation master
     def calculateWorkerScores(self, unit, dest):
+        eprint("worker",unit.id)
         return {self.calculateWorkerReturnScore(unit):"ret", self.calculateWorkerBuildScore(unit):"build",
                self.calculateWorkerStayScore(unit): "stay",
                 self.calculateWorkerMoveToResScore(unit, dest): "moveToResource"}
 
     # compute individual worker scores
-    def calculateWorkerReturnScore(self, unit):
-        return (1 - (0.1 * self.c) + (0.5 * self.r) + (0.1 * self.w) + (0.5 * self.t))*(self.cN <= 0)
+    def calculateWorkerReturnScore(self, unit,a):
+        # a = [1,-0.1,-.5,-.1,0.5]
+        b = [1,self.c,self.r,self.w,self.t]
+        eprint("return:",np.inner(a,b))
+        return np.inner(a,b)
+    def calculateWorkerBuildScore(self, unit,passed):
+        # passed = [1, -0.1, -.5, -.1, 0.5, 0]
+        a = passed[:-1]
+        b = [1, self.c, self.r, self.w, self.t * self.cN >= passed[-1]]
+        eprint("build:",np.inner(a,b))
+        return np.inner(a,b)
 
-    def calculateWorkerBuildScore(self, unit):
-        return (1 - (0.1 * self.c) + (0.5 * self.r) + (0.1 * self.w) + (0.5 * self.t))*(self.cN <= 0)
-
-    def calculateWorkerStayScore(self, unit):
+    def calculateWorkerStayScore(self, unit,a):
+        b = [self.r, self.t, self.rCargo, self.c, self.cN]
+        # a = [0.1, 0.1, 0.05, -0.1, -0.5]
         if self.rCargo != 0:
-            return 0.1 * self.c * (self.r * 0.1 + 0.1 * self.t + 0.5 * self.rCargo - 0.1 * self.c - 0.5 * self.cN)
+            eprint("stay:", np.inner(a, b))
+            return np.inner(a,b)
         else:
             return 0
 
-    def calculateWorkerMoveToResScore(self, unit, dest):
-
+    def calculateWorkerMoveToResScore(self, unit, dest,passed):
+        # passed = [0.1,-.5,.2,0,0]
+        a = passed[:-2]
+        b = [self.t,numResTiles(getSurroundingTiles(dest, 1)),self.rCargo]
         if self.rCargo != 0:
-            return 0.1 * self.t + (0.5 * numResTiles(getSurroundingTiles(dest, 1)) + 0.2 * self.rCargo * (
-                        self.cN <= 0 or unit.cargo == 0))
+            eprint("move to resource:", np.inner(a, b))
+            return np.inner(a,b)* (self.cN <= 0 or unit.cargo == 0)
         else:
             return 0
 
@@ -369,7 +400,7 @@ def targetCity(unit, player, order, actions):
             eprint("city at ", closest_city_tiles[order].pos.x, ", ", closest_city_tiles[order].pos.y)
             return closest_city_tiles[order].pos
     else:
-        eprint("No city!! looking for element #", order - 1)
+        # eprint("No city!! looking for element #", order - 1)
         return unit.pos
 
 
@@ -497,11 +528,11 @@ def cartLogic(cart, actions):
 # TODO: Go save a dying city?
 
 def workerReturn(unit,targetDest,actions):
-    if targetCity(unit, player, 1, actions):
-        if move(unit, targetCity(unit, player, 1, actions), actions):
+    if targetCity(unit, game_state.players[game_state.id], 1, actions):
+        if move(unit, targetCity(unit, game_state.players[game_state.id], 1, actions), actions):
             return True
-    elif targetCity(unit, player, 2, actions):
-        if move(unit, targetCity(unit, player, 2, actions), actions):
+    elif targetCity(unit, game_state.players[game_state.id], 2, actions):
+        if move(unit, targetCity(unit, game_state.players[game_state.id], 2, actions), actions):
             return True
     return False
 def workerStay(unit,targetDest,actions):
@@ -523,7 +554,7 @@ def workerLogic(player, unit, actions, resource_tiles):
         if functToOptions[choice](unit,targetDest,actions):
             return True
         else:
-            # options[max(options.keys())] = 0
+            i =0
             choice = options[max(options.keys())]
     return False
 
@@ -584,14 +615,14 @@ def findPath(unit, dest, actions, doAnnotate):
 def move(unit, dest, actions):
     if dest is None:
         eprint("WHAT! DEST IS NONE! Unit ID = ", unit.id)
-    if game_state.map.get_cell_by_pos(dest).blocked:
-        eprint("we seem to think that", dest.x, dest.y, "is blocked")
+    # if game_state.map.get_cell_by_pos(dest).blocked:
+        # eprint("we seem to think that", dest.x, dest.y, "is blocked")
     else:
         path = findPath(unit, dest, actions, True)
         if len(path) > 0:
             eprint("path has length when", unit.id, "tried to move to ", dest.x, dest.y)
             actions.append(unit.move(unit.pos.direction_to(path[0])))
             return True
-    eprint("navigation failed while ", unit.id, " tried to move to", dest.x, dest.y, ". unit was at ", unit.pos.x,
-           unit.pos.y)
+    # eprint("navigation failed while ", unit.id, " tried to move to", dest.x, dest.y, ". unit was at ", unit.pos.x,
+    #        unit.pos.y)
     return False
