@@ -42,11 +42,35 @@ def getSurroundingTiles(pos, dist):
 # if len(enc) > 2:
 #      dataArray.reshape(enc[2])   # return the reshaped numpy array containing several data sets
 # json.dumps([str(nparray.dtype), base64.b64encode(nparray), nparray.shape])
+def readLastLineFromFile(filename):
+    with open(filename, 'r') as f:
+        last_line = f.readlines()[-1]
+    return last_line
+
+def decodeJSON(dump):
+    enc = json.loads(encStr)
+    dataType = numpy.dtype(enc[0])
+    dataArray = numpy.frombuffer(base64.decodestring(enc[1]), dataType)
+    if len(enc) > 2:
+        dataArray.reshape(enc[2])
+    return dataArray
+
+def parseInstructions(filename):
+    line = readLastLineFromFile(filename)
+    dataArray = decodeJSON(line)
+    return dataArray[1:,:]
+
+def reportScore(score,filename):
+    nparray = numpy.array([('score', score)],dtype=([('keys', '|S1'), ('data', 'i8')]))
+    toWrite = json.dumps([str(nparray.dtype), base64.b64encode(nparray), nparray.shape])
+    with open(filename, 'a') as f:
+        f.write(toWrite)
 
 
 class Score:
-    def __init__(self,unit):
+    def __init__(self,unit,inputInstructionLists):
         eprint("initializing")
+        # res = dict(zip(test_keys, test_values))
         self.decisionParameters: dict = {"time": turnsUntilNight(), "cities": len(game_state.players[game_state.id].cities.values()),
                                   "workers": numWorkers(), "carts": numCarts(), "cityResTileReq": 1,
                                   "citiesInNeed": numCitiesInNeed(),
@@ -58,12 +82,13 @@ class Score:
         self.r = numResTiles(getSurroundingTiles(unit.pos, 1))
         self.rCargo = unit.get_cargo_space_left()
 
+        self.inputLists = inputInstructionLists
     # worker calculation master
     def calculateWorkerScores(self, unit, dest):
         eprint("worker",unit.id)
-        return {self.calculateWorkerReturnScore(unit):"ret", self.calculateWorkerBuildScore(unit):"build",
-               self.calculateWorkerStayScore(unit): "stay",
-                self.calculateWorkerMoveToResScore(unit, dest): "moveToResource"}
+        return {self.calculateWorkerReturnScore(unit,self.inputLists[0]):"ret", self.calculateWorkerBuildScore(unit,self.inputLists[1]):"build",
+               self.calculateWorkerStayScore(unit,self.inputLists[2]): "stay",
+                self.calculateWorkerMoveToResScore(unit, dest,self.inputLists[3]): "moveToResource"}
 
     # compute individual worker scores
     def calculateWorkerReturnScore(self, unit,a):
@@ -149,7 +174,7 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
-def agent(observation, configuration):
+def agent(observation, configuration,doGraphics):
     global game_state
 
     ### Do not edit ###
@@ -163,8 +188,11 @@ def agent(observation, configuration):
 
     actions = []
 
+    instructionData = parseInstructions("gameDataResults")
+
     ### AI Code goes down here! ###
-    display.draw_map_underlay(observation, game_state)
+    if doGraphics:
+        display.draw_map_underlay(observation, game_state)
 
     player = game_state.players[observation.player]
     opponent = game_state.players[(observation.player + 1) % 2]
@@ -192,7 +220,8 @@ def agent(observation, configuration):
     for city in player.cities.values():
         cityActions(city, actions)
 
-    display.draw_map_overlay(observation, game_state, actions.copy())
+    if doGraphics:
+        display.draw_map_overlay(observation, game_state, actions.copy())
 
     return actions
 
