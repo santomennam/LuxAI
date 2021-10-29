@@ -15,6 +15,8 @@ import display
 
 # menu item: Code/inspect code
 
+totalUnitsBuilt = 0
+totalCitiesBuilt = 0
 DIRECTIONS = Constants.DIRECTIONS
 DIR_LIST = [DIRECTIONS.NORTH, DIRECTIONS.EAST, DIRECTIONS.SOUTH, DIRECTIONS.WEST]
 fuelThreshold = 200 #the amount of fuel a city must have to be considered not in danger
@@ -32,16 +34,7 @@ def getSurroundingTiles(pos, dist):
 # # get the encoded json dump
 # enc = json.loads(encStr)
 #
-# # build the numpy data type
-# dataType = numpy.dtype(enc[0])
-#
-# # decode the base64 encoded numpy array data and create a new numpy array with this data & type
-# dataArray = numpy.frombuffer(base64.decodestring(enc[1]), dataType)
-#
-# # if the array had more than one data set it has to be reshaped
-# if len(enc) > 2:
-#      dataArray.reshape(enc[2])   # return the reshaped numpy array containing several data sets
-# json.dumps([str(nparray.dtype), base64.b64encode(nparray), nparray.shape])
+
 def readLastLineFromFile(filename):
     with open(filename, 'r') as f:
         last_line = f.readlines()[-1]
@@ -68,7 +61,8 @@ def reportScore(score,filename):
 
 
 class Score:
-    def __init__(self,unit,inputInstructionLists):
+
+    def __init__(self,unit,instructionsList): #should be a list of four lists, lengths 5,6,5,5
         eprint("initializing")
         # res = dict(zip(test_keys, test_values))
         self.decisionParameters: dict = {"time": turnsUntilNight(), "cities": len(game_state.players[game_state.id].cities.values()),
@@ -82,7 +76,9 @@ class Score:
         self.r = numResTiles(getSurroundingTiles(unit.pos, 1))
         self.rCargo = unit.get_cargo_space_left()
 
-        self.inputLists = inputInstructionLists
+        self.inputLists = instructionsList
+        # if len(self.inputLists) != 4:
+        #     raise ValueError("expected 4 arguments, got", len(self.inputLists))
     # worker calculation master
     def calculateWorkerScores(self, unit, dest):
         eprint("worker",unit.id)
@@ -188,7 +184,7 @@ def agent(observation, configuration,doGraphics):
 
     actions = []
 
-    instructionData = parseInstructions("gameDataResults")
+    instructionData = parseInstructions("gameDataAndResults")
 
     ### AI Code goes down here! ###
     if doGraphics:
@@ -197,6 +193,10 @@ def agent(observation, configuration,doGraphics):
     player = game_state.players[observation.player]
     opponent = game_state.players[(observation.player + 1) % 2]
     width, height = game_state.map.width, game_state.map.height
+
+    if game_state.turn == 360:
+        score = didIWin()*100+len(player.cities.keys())*50+len(player.units)*10-numUnitsLost()*8 -numCitiesLost()*45
+        reportScore(score,"gameDataAndResults")
 
     eprint(" === TURN ", game_state.turn, " ===")
     # updateParameters()
@@ -225,7 +225,19 @@ def agent(observation, configuration,doGraphics):
 
     return actions
 
-
+def didIWin():
+    if len(game_state.players[game_state.id].cities.keys()) != len(game_state.players[(game_state.id +1) %2].cities.keys()):
+        return len(game_state.players[game_state.id].cities.keys()) > len(game_state.players[(game_state.id+1) %2].cities.keys())
+    elif len(game_state.players[game_state.id].units) != len(game_state.players[(game_state.id +1) %2].units):
+        return len(game_state.players[game_state.id].units) > len(game_state.players[(game_state.id +1) %2].units)
+    else:
+        return 0.5
+def numUnitsLost():
+    global totalUnitsBuilt
+    return totalUnitsBuilt + 1 - len(game_state.players[game_state.id].units)
+def numCitiesLost():
+    global totalCitiesBuilt
+    return totalCitiesBuilt + 1 - len(game_state.players[game_state.id].cities.keys())
 def initCells():
     resource_tiles: list[Cell] = []
     for cell in allCells():
@@ -311,12 +323,14 @@ def assignUnits():
 
 # decide whether to build a new city tile (and if so, do so)
 def cityPlanner(unit, actions):
+    global totalCitiesBuilt
     # is it possible to build a city here?
     possible = unit.can_build(game_state.map) and not getCell(unit).citytile
     desired = (nextToCity(unit) or numResTiles(getSurroundingTiles(unit.pos, 1)) >= 1) and turnsUntilNight() > 0
     if possible and desired:
         actions.append(unit.build_city())
         eprint("built city!")
+        totalCitiesBuilt += 1
         return True
     eprint("failed to build city")
     return False
@@ -474,14 +488,17 @@ def unitActions(player, unit, actions, resource_tiles):
 
 
 def cityActions(city, actions):
+    global totalUnitsBuilt
     for citytile in city.citytiles:
         if citytile.cooldown < 1:
             if len(game_state.players[game_state.id].units) % 4 == 0:
                 if buildCart(citytile, actions):
                     eprint("built a cart!")
                     continue
+                    totalUnitsBuilt += 1
             elif buildWorker(citytile, actions):
                 eprint("built a worker!")
+                totalUnitsBuilt += 1
                 continue
             elif not game_state.players[game_state.id].researched_uranium():
                 actions.append(citytile.research())
