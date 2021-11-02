@@ -1,3 +1,4 @@
+import os
 from typing import Any
 import json
 import base64
@@ -19,7 +20,9 @@ totalUnitsBuilt = 0
 totalCitiesBuilt = 0
 DIRECTIONS = Constants.DIRECTIONS
 DIR_LIST = [DIRECTIONS.NORTH, DIRECTIONS.EAST, DIRECTIONS.SOUTH, DIRECTIONS.WEST]
-fuelThreshold = 200 #the amount of fuel a city must have to be considered not in danger
+fuelThreshold = 200  # the amount of fuel a city must have to be considered not in danger
+
+
 # return a list of the four Tile objects around pos
 def getSurroundingTiles(pos, dist):
     surroundingTiles = []
@@ -28,6 +31,7 @@ def getSurroundingTiles(pos, dist):
                                                                                   dist).y < game_state.map.height:
             surroundingTiles.append(game_state.map.get_cell_by_pos(pos.translate(direct, dist)))
     return surroundingTiles
+
 
 # #And for decoding this does the work (encStr is the encoded JSON string, loaded from somewhere):
 #
@@ -40,21 +44,26 @@ def readLastLineFromFile(filename):
         last_line = f.readlines()[-1]
     return last_line
 
+
 def decodeJSON(dump):
-    enc = json.loads(encStr)
-    dataType = numpy.dtype(enc[0])
-    dataArray = numpy.frombuffer(base64.decodestring(enc[1]), dataType)
+    enc = json.loads(dump)
+    dataType = np.dtype(enc[0])
+    dataArray = np.frombuffer(base64.decodestring(enc[1]), dataType)
     if len(enc) > 2:
         dataArray.reshape(enc[2])
     return dataArray
 
+
 def parseInstructions(filename):
     line = readLastLineFromFile(filename)
+    eprint("last line:",line)
     dataArray = decodeJSON(line)
-    return dataArray[1:,:]
+    eprint("dataArray:",dataArray)
+    return dataArray[1:, :]
 
-def reportScore(score,filename):
-    nparray = numpy.array([('score', score)],dtype=([('keys', '|S1'), ('data', 'i8')]))
+
+def reportScore(score, filename):
+    nparray = np.array([('score', score)], dtype=([('keys', '|S1'), ('data', 'i8')]))
     toWrite = json.dumps([str(nparray.dtype), base64.b64encode(nparray), nparray.shape])
     with open(filename, 'a') as f:
         f.write(toWrite)
@@ -62,13 +71,14 @@ def reportScore(score,filename):
 
 class Score:
 
-    def __init__(self,unit,instructionsList): #should be a list of four lists, lengths 5,6,5,5
+    def __init__(self, unit, instructionsList):  # should be a list of four lists, lengths 5,6,5,5
         eprint("initializing")
         # res = dict(zip(test_keys, test_values))
-        self.decisionParameters: dict = {"time": turnsUntilNight(), "cities": len(game_state.players[game_state.id].cities.values()),
-                                  "workers": numWorkers(), "carts": numCarts(), "cityResTileReq": 1,
-                                  "citiesInNeed": numCitiesInNeed(),
-                                  "numResearch": game_state.players[game_state.id].research_points}
+        self.decisionParameters: dict = {"time": turnsUntilNight(),
+                                         "cities": len(game_state.players[game_state.id].cities.values()),
+                                         "workers": numWorkers(), "carts": numCarts(), "cityResTileReq": 1,
+                                         "citiesInNeed": numCitiesInNeed(),
+                                         "numResearch": game_state.players[game_state.id].research_points}
         self.c = self.decisionParameters["cities"]
         self.cN = self.decisionParameters["citiesInNeed"]
         self.w = self.decisionParameters["workers"]
@@ -79,42 +89,45 @@ class Score:
         self.inputLists = instructionsList
         # if len(self.inputLists) != 4:
         #     raise ValueError("expected 4 arguments, got", len(self.inputLists))
+
     # worker calculation master
     def calculateWorkerScores(self, unit, dest):
-        eprint("worker",unit.id)
-        return {self.calculateWorkerReturnScore(unit,self.inputLists[0]):"ret", self.calculateWorkerBuildScore(unit,self.inputLists[1]):"build",
-               self.calculateWorkerStayScore(unit,self.inputLists[2]): "stay",
-                self.calculateWorkerMoveToResScore(unit, dest,self.inputLists[3]): "moveToResource"}
+        eprint("worker", unit.id)
+        return {self.calculateWorkerReturnScore(unit, self.inputLists[0]): "ret",
+                self.calculateWorkerBuildScore(unit, self.inputLists[1]): "build",
+                self.calculateWorkerStayScore(unit, self.inputLists[2]): "stay",
+                self.calculateWorkerMoveToResScore(unit, dest, self.inputLists[3]): "moveToResource"}
 
     # compute individual worker scores
-    def calculateWorkerReturnScore(self, unit,a):
+    def calculateWorkerReturnScore(self, unit, a):
         # a = [1,-0.1,-.5,-.1,0.5]
-        b = [1,self.c,self.r,self.w,self.t]
-        eprint("return:",np.inner(a,b))
-        return np.inner(a,b)
-    def calculateWorkerBuildScore(self, unit,passed):
+        b = [1, self.c, self.r, self.w, self.t]
+        eprint("return:", np.inner(a, b))
+        return np.inner(a, b)
+
+    def calculateWorkerBuildScore(self, unit, passed):
         # passed = [1, -0.1, -.5, -.1, 0.5, 0]
         a = passed[:-1]
         b = [1, self.c, self.r, self.w, self.t * self.cN >= passed[-1]]
-        eprint("build:",np.inner(a,b))
-        return np.inner(a,b)
+        eprint("build:", np.inner(a, b))
+        return np.inner(a, b)
 
-    def calculateWorkerStayScore(self, unit,a):
+    def calculateWorkerStayScore(self, unit, a):
         b = [self.r, self.t, self.rCargo, self.c, self.cN]
         # a = [0.1, 0.1, 0.05, -0.1, -0.5]
         if self.rCargo != 0:
             eprint("stay:", np.inner(a, b))
-            return np.inner(a,b)
+            return np.inner(a, b)
         else:
             return 0
 
-    def calculateWorkerMoveToResScore(self, unit, dest,passed):
+    def calculateWorkerMoveToResScore(self, unit, dest, passed):
         # passed = [0.1,-.5,.2,0,0]
         a = passed[:-2]
-        b = [self.t,numResTiles(getSurroundingTiles(dest, 1)),self.rCargo]
+        b = [self.t, numResTiles(getSurroundingTiles(dest, 1)), self.rCargo]
         if self.rCargo != 0:
             eprint("move to resource:", np.inner(a, b))
-            return np.inner(a,b)* (self.cN <= 0 or unit.cargo == 0)
+            return np.inner(a, b) * (self.cN <= 0 or unit.cargo == 0)
         else:
             return 0
 
@@ -123,12 +136,13 @@ class Score:
         return {"return": self.calculateCartReturnScore(unit),
                 "stay": self.calculateCartStayScore(unit),
                 "moveToWorkers": self.calculateCartMoveScore(unit, dest)}
+
     # compute individual cart scores
     def calculateCartReturnScore(self, unit):
         if self.rCargo != 0:
             wInSurround = len(getSurroundingUnits(unit.pos))
             return (0.5 * (self.c + 1) - wInSurround * 0.1) * (
-                        + 0.1 * self.t + 0.5 * self.rCargo - 0.1 * self.c - 0.5 * self.cN)
+                    + 0.1 * self.t + 0.5 * self.rCargo - 0.1 * self.c - 0.5 * self.cN)
         else:
             return 10
 
@@ -137,9 +151,10 @@ class Score:
         score = (0.5 * (wInSurround) * (self.cN + 0.05 * (self.cR) + 0.1 * self.t))
         return score
 
-    def calculateCartStayScore(self,unit):
+    def calculateCartStayScore(self, unit):
         wInSurround = len(getSurroundingUnits(unit.pos))
         return 0.1 * self.c * (wInSurround * 0.1 + 0.1 * self.t + 0.5 * self.rCargo - 0.1 * self.c - 0.5 * self.cN)
+
 
 def numCitiesInNeed():
     global fuelThreshold
@@ -170,9 +185,9 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
-def agent(observation, configuration,doGraphics):
+def agent(observation, configuration, doGraphics):
     global game_state
-
+    eprint(os.listdir())
     ### Do not edit ###
     if observation["step"] == 0:
         game_state = Game()
@@ -184,7 +199,7 @@ def agent(observation, configuration,doGraphics):
 
     actions = []
 
-    instructionData = parseInstructions("gameDataAndResults")
+    instructionData = parseInstructions("gameDataAndResults.txt")
 
     ### AI Code goes down here! ###
     if doGraphics:
@@ -195,14 +210,14 @@ def agent(observation, configuration,doGraphics):
     width, height = game_state.map.width, game_state.map.height
 
     if game_state.turn == 360:
-        score = didIWin()*100+len(player.cities.keys())*50+len(player.units)*10-numUnitsLost()*8 -numCitiesLost()*45
-        reportScore(score,"gameDataAndResults")
+        score = didIWin() * 100 + len(player.cities.keys()) * 50 + len(
+            player.units) * 10 - numUnitsLost() * 8 - numCitiesLost() * 45
+        reportScore(score, "gameDataAndResults.txt")
 
     eprint(" === TURN ", game_state.turn, " ===")
     # updateParameters()
     workersOnCooldown = 0
     # categorizes tiles
-
     resource_tiles = initCells()
 
     for unit in opponent.units:
@@ -225,19 +240,28 @@ def agent(observation, configuration,doGraphics):
 
     return actions
 
+
 def didIWin():
-    if len(game_state.players[game_state.id].cities.keys()) != len(game_state.players[(game_state.id +1) %2].cities.keys()):
-        return len(game_state.players[game_state.id].cities.keys()) > len(game_state.players[(game_state.id+1) %2].cities.keys())
-    elif len(game_state.players[game_state.id].units) != len(game_state.players[(game_state.id +1) %2].units):
-        return len(game_state.players[game_state.id].units) > len(game_state.players[(game_state.id +1) %2].units)
+    if len(game_state.players[game_state.id].cities.keys()) != len(
+            game_state.players[(game_state.id + 1) % 2].cities.keys()):
+        return len(game_state.players[game_state.id].cities.keys()) > len(
+            game_state.players[(game_state.id + 1) % 2].cities.keys())
+    elif len(game_state.players[game_state.id].units) != len(game_state.players[(game_state.id + 1) % 2].units):
+        return len(game_state.players[game_state.id].units) > len(game_state.players[(game_state.id + 1) % 2].units)
     else:
         return 0.5
+
+
 def numUnitsLost():
     global totalUnitsBuilt
     return totalUnitsBuilt + 1 - len(game_state.players[game_state.id].units)
+
+
 def numCitiesLost():
     global totalCitiesBuilt
     return totalCitiesBuilt + 1 - len(game_state.players[game_state.id].cities.keys())
+
+
 def initCells():
     resource_tiles: list[Cell] = []
     for cell in allCells():
@@ -285,6 +309,7 @@ def nextToCity(unit):
 
 def turnsUntilNight():
     return max(30 - game_state.turn % 40, 0)
+
 
 def nightRemaining():
     return min(39 - (game_state.turn % 40), 10)
@@ -410,7 +435,7 @@ def targetResource(unit, resourceTiles, player, actions):
         fuelGain = (woodGain * turnsAtDest) + (coalGain * turnsAtDest) * 10 + (uraniumGain * turnsAtDest) * 40
         fuelLost = woodUsed + coalUsed * 10 + uraniumUsed
         # calculates potential fuel (after city conversion) per turn
-        fuelPerTurn = (fuelGain - fuelLost) / (max(rndTripLength,1))
+        fuelPerTurn = (fuelGain - fuelLost) / (max(rndTripLength, 1))
 
         # the tile that nets the highest fuel per turn becomes the target
         if (target == None or (fuelPerTurn > target.fuelPerTurn)):
@@ -573,7 +598,7 @@ def cartLogic(cart, actions):
 
 # TODO: Go save a dying city?
 
-def workerReturn(unit,targetDest,actions):
+def workerReturn(unit, targetDest, actions):
     if targetCity(unit, game_state.players[game_state.id], 1, actions):
         if move(unit, targetCity(unit, game_state.players[game_state.id], 1, actions), actions):
             return True
@@ -581,28 +606,36 @@ def workerReturn(unit,targetDest,actions):
         if move(unit, targetCity(unit, game_state.players[game_state.id], 2, actions), actions):
             return True
     return False
-def workerStay(unit,targetDest,actions):
+
+
+def workerStay(unit, targetDest, actions):
     return True
-def moveToTarget(unit,targetDest,actions):
-    return move(unit,targetDest,actions)
-def workerBuild(unit,targetDest,actions):
+
+
+def moveToTarget(unit, targetDest, actions):
+    return move(unit, targetDest, actions)
+
+
+def workerBuild(unit, targetDest, actions):
     return cityPlanner(unit, actions)
+
 
 def workerLogic(player, unit, actions, resource_tiles):
     # unit.cargo.total = unit.cargo.wood + unit.cargo.coal + unit.cargo.uranium
-    functToOptions = {"ret": workerReturn,"stay":workerStay,"moveToResource": moveToTarget,"build":workerBuild}
+    functToOptions = {"ret": workerReturn, "stay": workerStay, "moveToResource": moveToTarget, "build": workerBuild}
     score = Score(unit)
     targetDest = targetResource(unit, resource_tiles, player, actions)
-    options = score.calculateWorkerScores(unit,targetDest)
+    options = score.calculateWorkerScores(unit, targetDest)
     choice = options[max(options.keys())]
 
     for i in options.keys():
-        if functToOptions[choice](unit,targetDest,actions):
+        if functToOptions[choice](unit, targetDest, actions):
             return True
         else:
-            i =0
+            i = 0
             choice = options[max(options.keys())]
     return False
+
 
 def cityTileFuelUse(tile):
     surrounding = getSurroundingTiles(tile.pos, 1)
@@ -662,7 +695,7 @@ def move(unit, dest, actions):
     if dest is None:
         eprint("WHAT! DEST IS NONE! Unit ID = ", unit.id)
     # if game_state.map.get_cell_by_pos(dest).blocked:
-        # eprint("we seem to think that", dest.x, dest.y, "is blocked")
+    # eprint("we seem to think that", dest.x, dest.y, "is blocked")
     else:
         path = findPath(unit, dest, actions, True)
         if len(path) > 0:
