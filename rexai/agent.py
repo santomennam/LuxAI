@@ -48,23 +48,23 @@ def readLastLineFromFile(filename):
 def decodeJSON(dump):
     enc = json.loads(dump)
     dataType = np.dtype(enc[0])
-    dataArray = np.frombuffer(base64.decodestring(enc[1]), dataType)
-    if len(enc) > 2:
-        dataArray.reshape(enc[2])
+    # eprint("dump",enc)
+    dataArray = list(enc[1][0])
+    eprint(enc[1][0])
+    # eprint("data:",dataArray)
     return dataArray
 
 
 def parseInstructions(filename):
     line = readLastLineFromFile(filename)
-    eprint("last line:",line)
+    # eprint("last line:",line)
     dataArray = decodeJSON(line)
-    eprint("dataArray:",dataArray)
-    return dataArray[1:, :]
+    # eprint("dataArray:",dataArray)
+    return dataArray
 
 
 def reportScore(score, filename):
-    nparray = np.array([('score', score)], dtype=([('keys', '|S1'), ('data', 'i8')]))
-    toWrite = json.dumps([str(nparray.dtype), base64.b64encode(nparray), nparray.shape])
+    toWrite = json.dumps(score) + '\n'
     with open(filename, 'a') as f:
         f.write(toWrite)
 
@@ -187,7 +187,7 @@ def eprint(*args, **kwargs):
 
 def agent(observation, configuration, doGraphics):
     global game_state
-    eprint(os.listdir())
+    eprint("dir:",os.listdir())
     ### Do not edit ###
     if observation["step"] == 0:
         game_state = Game()
@@ -200,6 +200,7 @@ def agent(observation, configuration, doGraphics):
     actions = []
 
     instructionData = parseInstructions("gameDataAndResults.txt")
+
 
     ### AI Code goes down here! ###
     if doGraphics:
@@ -228,7 +229,7 @@ def agent(observation, configuration, doGraphics):
         getCell(unit).blocked = not getCell(unit).citytile
 
     for unit in player.units:
-        unitActions(player, unit, actions, resource_tiles)
+        unitActions(player, unit, actions, resource_tiles,instructionData)
 
     eprint(workersOnCooldown, " workers on cooldown")
 
@@ -237,7 +238,7 @@ def agent(observation, configuration, doGraphics):
 
     if doGraphics:
         display.draw_map_overlay(observation, game_state, actions.copy())
-
+    eprint("returning!")
     return actions
 
 
@@ -504,12 +505,12 @@ def numCarts():
     return num
 
 
-def unitActions(player, unit, actions, resource_tiles):
+def unitActions(player, unit, actions, resource_tiles,instructions):
     if not unit.can_act():
         return False
     if unit.is_cart():
         return cartLogic(unit, actions)
-    return workerLogic(player, unit, actions, resource_tiles)
+    return workerLogic(player, unit, actions, resource_tiles,instructions)
 
 
 def cityActions(city, actions):
@@ -620,10 +621,10 @@ def workerBuild(unit, targetDest, actions):
     return cityPlanner(unit, actions)
 
 
-def workerLogic(player, unit, actions, resource_tiles):
+def workerLogic(player, unit, actions, resource_tiles,instructions):
     # unit.cargo.total = unit.cargo.wood + unit.cargo.coal + unit.cargo.uranium
     functToOptions = {"ret": workerReturn, "stay": workerStay, "moveToResource": moveToTarget, "build": workerBuild}
-    score = Score(unit)
+    score = Score(unit,instructions)
     targetDest = targetResource(unit, resource_tiles, player, actions)
     options = score.calculateWorkerScores(unit, targetDest)
     choice = options[max(options.keys())]

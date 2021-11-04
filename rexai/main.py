@@ -5,6 +5,11 @@ import display
 import pygame, sys
 from pygame.locals import *
 
+
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
+
+
 if __name__ == "__main__":
     doGraphics = False
 
@@ -59,38 +64,36 @@ if __name__ == "__main__":
 
         if not take_step:
             continue
+        while True:
+            inputs = read_input()
+            observation["updates"].append(inputs)
 
-            while True:
-                inputs = read_input()
-                observation["updates"].append(inputs)
-
-                if step == 0:
-                    player_id = int(observation["updates"][0])
-                    observation.player = player_id
-                if inputs == "D_DONE":
-                    # sys.stderr.write(",".join(observation["updates"]))
-                    actions = agent(observation, None)
-                    observation["updates"] = []
-                    step += 1
-                    observation["step"] = step
-                    print(",".join(actions))
-                    print("D_FINISH")
-                    break
+            if step == 0:
+                player_id = int(observation["updates"][0])
+                observation.player = player_id
+            if inputs == "D_DONE":
+                # sys.stderr.write(",".join(observation["updates"]))
+                actions = agent(observation, None,doGraphics)
+                observation["updates"] = []
+                step += 1
+                observation["step"] = step
+                print(",".join(actions))
+                print("D_FINISH")
+                break
     while True and not doGraphics:
-
-        inputs = read_input()
-        observation["updates"].append(inputs)
-
-        if step == 0:
-
-            player_id = int(observation["updates"][0])
-            observation.player = player_id
-        if inputs == "D_DONE":
-            # sys.stderr.write(",".join(observation["updates"]))
-            actions = agent(observation, None,doGraphics)
-            observation["updates"] = []
-            step += 1
-            observation["step"] = step
-            print(",".join(actions))
-            print("D_FINISH")
-            break
+        while True:
+            inputs = read_input()
+            observation["updates"].append(inputs)
+            if step == 0:
+                player_id = int(observation["updates"][0])
+                observation.player = player_id
+            if inputs == "D_DONE":
+                # sys.stderr.write(",".join(observation["updates"]))
+                actions = agent(observation, None, doGraphics)
+                observation["updates"] = []
+                step += 1
+                observation["step"] = step
+                print(",".join(actions))
+                print("D_FINISH")
+                eprint("finished turn")
+                break
