@@ -47,12 +47,12 @@ def readLastLineFromFile(filename):
 
 def decodeJSON(dump):
     enc = json.loads(dump)
-    dataType = np.dtype(enc[0])
+    # dataType = np.dtype(enc[0])
     # eprint("dump",enc)
-    dataArray = list(enc[1][0])
-    eprint(enc[1][0])
+    # dataArray = list(enc[1][0])
+    # eprint(enc[1][0])
     # eprint("data:",dataArray)
-    return dataArray
+    return np.array(enc)
 
 
 def parseInstructions(filename):
@@ -72,7 +72,7 @@ def reportScore(score, filename):
 class Score:
 
     def __init__(self, unit, instructionsList):  # should be a list of four lists, lengths 5,6,5,5
-        eprint("initializing")
+        # eprint("initializing")
         # res = dict(zip(test_keys, test_values))
         self.decisionParameters: dict = {"time": turnsUntilNight(),
                                          "cities": len(game_state.players[game_state.id].cities.values()),
@@ -87,12 +87,14 @@ class Score:
         self.rCargo = unit.get_cargo_space_left()
 
         self.inputLists = instructionsList
+        self.inputLists = self.inputLists.reshape(4,6)
+        # eprint("reshaped inputLists:",self.inputLists)
         # if len(self.inputLists) != 4:
         #     raise ValueError("expected 4 arguments, got", len(self.inputLists))
 
     # worker calculation master
     def calculateWorkerScores(self, unit, dest):
-        eprint("worker", unit.id)
+        # eprint("inputLists:", self.inputLists)
         return {self.calculateWorkerReturnScore(unit, self.inputLists[0]): "ret",
                 self.calculateWorkerBuildScore(unit, self.inputLists[1]): "build",
                 self.calculateWorkerStayScore(unit, self.inputLists[2]): "stay",
@@ -101,32 +103,34 @@ class Score:
     # compute individual worker scores
     def calculateWorkerReturnScore(self, unit, a):
         # a = [1,-0.1,-.5,-.1,0.5]
+        a = a[:-1]
         b = [1, self.c, self.r, self.w, self.t]
-        eprint("return:", np.inner(a, b))
+        # eprint("return:", np.inner(a, b))
         return np.inner(a, b)
 
     def calculateWorkerBuildScore(self, unit, passed):
         # passed = [1, -0.1, -.5, -.1, 0.5, 0]
         a = passed[:-1]
         b = [1, self.c, self.r, self.w, self.t * self.cN >= passed[-1]]
-        eprint("build:", np.inner(a, b))
+        # eprint("build:", np.inner(a, b))
         return np.inner(a, b)
 
     def calculateWorkerStayScore(self, unit, a):
         b = [self.r, self.t, self.rCargo, self.c, self.cN]
         # a = [0.1, 0.1, 0.05, -0.1, -0.5]
+        a = a[:-1]
         if self.rCargo != 0:
-            eprint("stay:", np.inner(a, b))
+            # eprint("stay:", np.inner(a, b))
             return np.inner(a, b)
         else:
             return 0
 
     def calculateWorkerMoveToResScore(self, unit, dest, passed):
         # passed = [0.1,-.5,.2,0,0]
-        a = passed[:-2]
+        a = passed[:-3]
         b = [self.t, numResTiles(getSurroundingTiles(dest, 1)), self.rCargo]
         if self.rCargo != 0:
-            eprint("move to resource:", np.inner(a, b))
+            # eprint("move to resource:", np.inner(a, b))
             return np.inner(a, b) * (self.cN <= 0 or unit.cargo == 0)
         else:
             return 0
@@ -187,7 +191,7 @@ def eprint(*args, **kwargs):
 
 def agent(observation, configuration, doGraphics):
     global game_state
-    eprint("dir:",os.listdir())
+    # eprint("dir:",os.listdir())
     ### Do not edit ###
     if observation["step"] == 0:
         game_state = Game()
@@ -199,7 +203,7 @@ def agent(observation, configuration, doGraphics):
 
     actions = []
 
-    instructionData = parseInstructions("gameDataAndResults.txt")
+    instructionData = parseInstructions("instructions.txt")
 
 
     ### AI Code goes down here! ###
@@ -210,12 +214,12 @@ def agent(observation, configuration, doGraphics):
     opponent = game_state.players[(observation.player + 1) % 2]
     width, height = game_state.map.width, game_state.map.height
 
-    if game_state.turn == 360:
-        score = didIWin() * 100 + len(player.cities.keys()) * 50 + len(
-            player.units) * 10 - numUnitsLost() * 8 - numCitiesLost() * 45
-        reportScore(score, "gameDataAndResults.txt")
 
-    eprint(" === TURN ", game_state.turn, " ===")
+    score = didIWin() * 100 + len(player.cities.keys()) * 50 + len(
+        player.units) * 10 - (numUnitsLost() * 8) - numCitiesLost() * 45
+    reportScore(score, "scores.txt")
+
+    # eprint(" === TURN ", game_state.turn, " ===")
     # updateParameters()
     workersOnCooldown = 0
     # categorizes tiles
@@ -230,15 +234,19 @@ def agent(observation, configuration, doGraphics):
 
     for unit in player.units:
         unitActions(player, unit, actions, resource_tiles,instructionData)
+    for city in opponent.cities.values():
+        for tile in city.citytiles:
+            getCell(tile.pos).blocked = True
 
-    eprint(workersOnCooldown, " workers on cooldown")
+
+    # eprint(workersOnCooldown, " workers on cooldown")
 
     for city in player.cities.values():
         cityActions(city, actions)
 
     if doGraphics:
         display.draw_map_overlay(observation, game_state, actions.copy())
-    eprint("returning!")
+    # eprint("returning!")
     return actions
 
 
@@ -355,10 +363,10 @@ def cityPlanner(unit, actions):
     desired = (nextToCity(unit) or numResTiles(getSurroundingTiles(unit.pos, 1)) >= 1) and turnsUntilNight() > 0
     if possible and desired:
         actions.append(unit.build_city())
-        eprint("built city!")
+        # eprint("built city!")
         totalCitiesBuilt += 1
         return True
-    eprint("failed to build city")
+    # eprint("failed to build city")
     return False
 
 
@@ -445,7 +453,7 @@ def targetResource(unit, resourceTiles, player, actions):
                 target.fuelPerTurn = fuelPerTurn
 
     if target == None:
-        eprint("no target in range")
+        # eprint("no target in range")
         return targetCity(unit, player, 1, actions)
     else:
         # actions.append(annotate.sidetext("option: " + str(tile.pos.x) + ", " + str(tile.pos.y)))
@@ -466,7 +474,7 @@ def targetCity(unit, player, order, actions):
         if len(closest_city_tiles):
             closest_city_tiles.sort(key=lambda y: unit.pos.distance_to(y.pos))
             order = max(min(order - 1, len(closest_city_tiles) - 1), 0)
-            eprint("city at ", closest_city_tiles[order].pos.x, ", ", closest_city_tiles[order].pos.y)
+            # eprint("city at ", closest_city_tiles[order].pos.x, ", ", closest_city_tiles[order].pos.y)
             return closest_city_tiles[order].pos
     else:
         # eprint("No city!! looking for element #", order - 1)
@@ -519,16 +527,16 @@ def cityActions(city, actions):
         if citytile.cooldown < 1:
             if len(game_state.players[game_state.id].units) % 4 == 0:
                 if buildCart(citytile, actions):
-                    eprint("built a cart!")
+                    # eprint("built a cart!")
                     continue
                     totalUnitsBuilt += 1
             elif buildWorker(citytile, actions):
-                eprint("built a worker!")
+                # eprint("built a worker!")
                 totalUnitsBuilt += 1
                 continue
             elif not game_state.players[game_state.id].researched_uranium():
                 actions.append(citytile.research())
-                eprint('research!:', game_state.players[game_state.id].research_points)
+                # eprint('research!:', game_state.players[game_state.id].research_points)
 
 
 def cartDestFinder(cart):
@@ -582,16 +590,17 @@ def cartLogic(cart, actions):
             cartDestDict[cart.id] = targetCity(cart, game_state.players[game_state.id], 1, actions)
             goingHomeSet.add(cart.id)
     if cart.id in cartDestDict.keys() and cart.pos == cartDestDict[cart.id] and (
-            turnsUntilNight() > 3 or cart.cargo < 10):
+            turnsUntilNight() > 3 or (cart.get_cargo_space_left()) > 1990):
         for unit in getSurroundingUnits(cart.pos):
             if unit.is_worker() and unit.can_act():
                 resourceAmounts = {}
                 resourceAmounts["wood"]: unit.cargo.wood
                 resourceAmounts["coal"]: unit.cargo.coal
                 resourceAmounts["uranium"]: unit.cargo.uranium
-                max_res = max(resourceAmounts, key=resourceAmounts.get)
-                if max(resourceAmounts.values()) > 20:  # dont bother transferring if don't have enough
-                    actions.append(unit.transfer(cart.id, max_res, max(resourceAmounts.values()) - 5))
+                if len(resourceAmounts):
+                    max_res = max(resourceAmounts, key=resourceAmounts.get)
+                    if max(resourceAmounts.values()) > 20:  # dont bother transferring if don't have enough
+                        actions.append(unit.transfer(cart.id, max_res, max(resourceAmounts.values()) - 5))
         return
     if cart.id in cartDestDict.keys() and cart.pos != cartDestDict[cart.id]:
         move(cart, cartDestDict[cart.id], actions)
@@ -680,8 +689,8 @@ def totalCityTiles():
 
 
 def findPath(unit, dest, actions, doAnnotate):
-    eprint("My location: ", unit.pos)
-    eprint("Destination: ", dest)
+    # eprint("My location: ", unit.pos)
+    # eprint("Destination: ", dest)
 
     path = []
     recursivePath(getCell(unit), dest, path)
@@ -700,7 +709,7 @@ def move(unit, dest, actions):
     else:
         path = findPath(unit, dest, actions, True)
         if len(path) > 0:
-            eprint("path has length when", unit.id, "tried to move to ", dest.x, dest.y)
+            # eprint("path has length when", unit.id, "tried to move to ", dest.x, dest.y)
             actions.append(unit.move(unit.pos.direction_to(path[0])))
             return True
     # eprint("navigation failed while ", unit.id, " tried to move to", dest.x, dest.y, ". unit was at ", unit.pos.x,

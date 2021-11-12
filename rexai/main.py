@@ -95,5 +95,5 @@ if __name__ == "__main__":
                 observation["step"] = step
                 print(",".join(actions))
                 print("D_FINISH")
-                eprint("finished turn")
+                # eprint("finished turn")
                 break
