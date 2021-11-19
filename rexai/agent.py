@@ -482,7 +482,8 @@ def targetCity(unit, player, order, actions):
 
 
 def recursivePath(tile, dest, path):
-    if tile.blocked or tile.visited:
+    if tile.blocked or tile.visited or len(path) > 30:
+        tile.visited = True
         return False
     tile.visited = True
     surrounding = getSurroundingTiles(tile.pos, 1)
