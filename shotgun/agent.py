@@ -41,7 +41,7 @@ def agent(observation, configuration):
     opponent = game_state.players[(observation.player + 1) % 2]
     width, height = game_state.map.width, game_state.map.height
 
-    eprint(" === TURN ", game_state.turn, " ===")
+    # eprint(" === TURN ", game_state.turn, " ===")
 
     # categorizes tiles
     resource_tiles: list[Cell] = []
@@ -81,7 +81,7 @@ def agent(observation, configuration):
                     game_state.map.get_cell_by_pos(unit.pos).blocked = True
             else:
                 # if unit is a worker and there is no cargo space left, and we have cities, lets return to them
-                eprint("cargo full")
+                # eprint("cargo full")
                 if cityPlanner(unit, actions):
                     continue
                 else:
@@ -112,10 +112,10 @@ def simulateTurns(adjResTiles, unitCargoSpace):
                 tileCopy.remove(tile)
 
 def nextToCity(unit):
-    eprint("expression:",list(map(lambda t: t.citytile is not None and t.citytile.team == game_state.players[game_state.id], getSurroundingTiles(unit.pos,1))))
-    eprint("any:", any(
-        map(lambda t: t.citytile is not None and t.citytile.team == game_state.players[game_state.id], getSurroundingTiles(unit.pos,1)))
-)
+#     eprint("expression:",list(map(lambda t: t.citytile is not None and t.citytile.team == game_state.players[game_state.id], getSurroundingTiles(unit.pos,1))))
+#     eprint("any:", any(
+#         map(lambda t: t.citytile is not None and t.citytile.team == game_state.players[game_state.id], getSurroundingTiles(unit.pos,1)))
+# )
     return any(
         list(map(lambda t: t.citytile is not None and t.citytile.team == game_state.players[game_state.id], getSurroundingTiles(unit.pos,1))))
 
@@ -153,14 +153,14 @@ def assignUnits():
                 unit.assignedCity = mostUnassigned()
 
 def cityPlanner(unit,actions):
-    eprint("unit pos:",unit.pos.x,unit.pos.y,"can act: ",unit.can_act(),"nextToCity:",nextToCity(unit), "numResTiles:",numResTiles(getSurroundingTiles(unit.pos,1)),"cargo space:",unit.get_cargo_space_left())
+    # eprint("unit pos:",unit.pos.x,unit.pos.y,"can act: ",unit.can_act(),"nextToCity:",nextToCity(unit), "numResTiles:",numResTiles(getSurroundingTiles(unit.pos,1)),"cargo space:",unit.get_cargo_space_left())
     if unit.can_act() and (nextToCity(unit) or numResTiles(getSurroundingTiles(unit.pos,1)) >= 1) and unit.get_cargo_space_left() == 0:
-        eprint("Trying to build city")
+        # eprint("Trying to build city")
         unitTile = game_state.map.get_cell_by_pos(unit.pos)
-        eprint("can_build:",unit.can_build(game_state.map))
+        # eprint("can_build:",unit.can_build(game_state.map))
         if not unitTile.has_resource() and not unitTile.citytile and turnsUntilNight()>0 and unit.can_build(game_state.map):
             actions.append(unit.build_city())
-            eprint("built city!")
+            # eprint("built city!")
             return True
     return False
 
@@ -247,7 +247,7 @@ def targetResource(unit, resourceTiles, player, actions):
                 target.fuelPerTurn = fuelPerTurn
 
     if target == None:
-        eprint("no target in range")
+        # eprint("no target in range")
         return targetCity(unit, player)
     else:
         # actions.append(annotate.sidetext("option: " + str(tile.pos.x) + ", " + str(tile.pos.y)))
@@ -269,15 +269,16 @@ def targetCity(unit, player):
                     closest_dist = dist
                     closest_city_tile = city_tile
         if closest_city_tile != None:
-            eprint("city at ", closest_city_tile.pos.x, ", ", closest_city_tile.pos.y)
+            # eprint("city at ", closest_city_tile.pos.x, ", ", closest_city_tile.pos.y)
             return closest_city_tile.pos
         else:
-            eprint("No city!!")
+            # eprint("No city!!")
             return unit.pos
 
 
 def recursivePath(tile, dest, path):
-    if tile.blocked or tile.visited:
+    if tile.blocked or tile.visited or len(path) > 30:
+        tile.visited = True
         return False
     tile.visited = True
     surrounding = getSurroundingTiles(tile.pos, 1)
@@ -301,11 +302,11 @@ def cityActions(city,actions):
     for citytile in city.citytiles:
         if citytile.cooldown < 1:
             if buildWorker(citytile,actions):
-                eprint("built a worker!")
+                # eprint("built a worker!")
                 continue
             else:
                 actions.append(citytile.research())
-                eprint('research!:', game_state.players[game_state.id].research_points)
+                # eprint('research!:', game_state.players[game_state.id].research_points)
 
 
 def tileFromPos(pos):
@@ -342,9 +343,10 @@ def totalCityTiles():
     return totalTiles
 
 def findPath(unit, dest, actions, doAnnotate):
-    eprint("My location: ", unit.pos)
-    eprint("Destination: ", dest)
-
+    # eprint("My location: ", unit.pos)
+    # eprint("Destination: ", dest)
+    if dest is None:
+        return []
     path = []
     recursivePath(tileFromPos(unit.pos), dest, path)
     if doAnnotate:

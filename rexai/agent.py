@@ -482,7 +482,7 @@ def targetCity(unit, player, order, actions):
 
 
 def recursivePath(tile, dest, path):
-    if tile.blocked or tile.visited or len(path) > 30:
+    if tile.blocked or tile.visited:
         tile.visited = True
         return False
     tile.visited = True
